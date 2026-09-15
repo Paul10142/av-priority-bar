@@ -137,10 +137,21 @@ final class CameraManager: ObservableObject {
         refreshCameras()
     }
 
+    /// Driven by the shared hand-raised button in the header, not by a
+    /// camera-only control.
     func setAutoSwitch(_ enabled: Bool) {
+        guard enabled != isAutoSwitchEnabled else { return }
         isAutoSwitchEnabled = enabled
         priorityManager.isAutoSwitchEnabled = enabled
         if enabled { applyHighestPriorityCamera() }
+    }
+
+    /// Re-reads the shared manual-mode flag after the audio side changes it.
+    func syncAutoSwitchFromSharedMode() {
+        let shared = priorityManager.isAutoSwitchEnabled
+        guard shared != isAutoSwitchEnabled else { return }
+        isAutoSwitchEnabled = shared
+        if shared { applyHighestPriorityCamera() }
     }
 
     func isIgnored(_ camera: CameraDevice) -> Bool {

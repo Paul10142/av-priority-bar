@@ -24,6 +24,7 @@
 		A10000000000000000000035 /* SettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000035 /* SettingsMigration.swift */; };
 		A10000000000000000000036 /* CameraListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000036 /* CameraListView.swift */; };
 		A10000000000000000000011 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* AVFoundation.framework */; };
+		A10000000000000000000037 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000037 /* CameraPreviewView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,6 +47,7 @@
 		A20000000000000000000035 /* SettingsMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMigration.swift; sourceTree = "<group>"; };
 		A20000000000000000000036 /* CameraListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraListView.swift; sourceTree = "<group>"; };
 		A20000000000000000000011 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		A20000000000000000000037 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +115,7 @@
 				A20000000000000000000005 /* MenuBarView.swift */,
 				A20000000000000000000006 /* DeviceListView.swift */,
 				A20000000000000000000036 /* CameraListView.swift */,
+				A20000000000000000000037 /* CameraPreviewView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -212,6 +215,7 @@
 				A10000000000000000000034 /* CameraManager.swift in Sources */,
 				A10000000000000000000035 /* SettingsMigration.swift in Sources */,
 				A10000000000000000000036 /* CameraListView.swift in Sources */,
+				A10000000000000000000037 /* CameraPreviewView.swift in Sources */,
 				A10000000000000000000003 /* AudioDeviceService.swift in Sources */,
 				A10000000000000000000004 /* PriorityManager.swift in Sources */,
 				A10000000000000000000005 /* MenuBarView.swift in Sources */,

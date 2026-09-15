@@ -14,8 +14,9 @@ Audio side: set your preferred order for speakers, headphones and microphones, a
 
 ## What's different from upstream
 
-- **Camera tab** - priority list for every camera, drag to reorder, auto-switch on connect/disconnect.
-- **Tabbed layout** - Audio and Camera share the panel; the audio UI is otherwise unchanged.
+- **Cameras** - a camera button sits in the existing mode row, next to the hand-raised manual button. Priority list, drag to reorder, auto-switch on connect/disconnect, and a live preview of the active camera.
+- **One manual switch** - the hand-raised button stops auto-switching for cameras as well as sound.
+- **Menu bar icon reflects state** - a slashed speaker when output is muted, a flashing slashed mic when input is, volume level in the waves otherwise.
 - **Builds without Xcode** - `./build.sh` compiles with the Command Line Tools and assembles the .app itself.
 - **Own bundle id** (`com.paulclancy.AVPriorityBar`), so it installs alongside the original. Audio settings are imported from the original app on first launch.
 
@@ -41,7 +42,8 @@ macOS has no single "default camera" setting the way it has for sound. What it d
 ### Camera
 
 - **Priority list**: Drag cameras into the order you want, or click one to move it to the top.
-- **Auto / Manual**: Auto keeps the top-ranked connected camera selected; Manual leaves the choice alone.
+- **Live preview**: A thumbnail of the active camera. This is the only time the app opens a video stream, and the only time the green camera light comes on - it runs while the camera view is open and stops the moment you leave it.
+- **Manual mode**: The shared hand-raised button stops camera auto-switching too.
 - **Override notice**: If another app changes the active camera, a banner offers to put it back.
 - **Ignore and forget**: Hide virtual cameras (OBS, Elgato) from the list, or forget ones you no longer own.
 - **Sensible first run**: Before you set an order, real hardware ranks above virtual cameras rather than trusting discovery order.

@@ -15,7 +15,17 @@ struct AVPriorityBarApp: App {
                 .environmentObject(audioManager)
                 .environmentObject(cameraManager)
         } label: {
-            Image(systemName: "speaker.wave.2.fill")
+            // Reflects what's actually happening: a slashed speaker when output
+            // is muted, a flashing slashed mic when input is, and the volume
+            // level in the waves the rest of the time.
+            MenuBarLabel(
+                volume: audioManager.volume,
+                isOutputMuted: audioManager.isActiveOutputMuted,
+                isInputMuted: audioManager.isActiveInputMuted,
+                isCustomMode: audioManager.isCustomMode,
+                mode: audioManager.currentMode,
+                micFlash: audioManager.micFlashState
+            )
         }
         .menuBarExtraStyle(.window)
     }

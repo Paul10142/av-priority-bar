@@ -1,44 +1,33 @@
 import SwiftUI
 import AVFoundation
 
-/// The whole Camera tab: permission states, the priority list, and the footnote
-/// explaining how far a system-wide camera preference actually reaches.
-struct CameraTabView: View {
+/// Contents of the camera view: live preview, the priority list, and the note
+/// about how far a system-wide camera preference reaches. The header row and
+/// scrolling are owned by MenuBarView, same as the audio sections.
+struct CameraContentView: View {
     @EnvironmentObject var cameraManager: CameraManager
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 12) {
-                CameraModeToggleView()
-                if cameraManager.isOverridden {
-                    CameraOverrideNoticeView()
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            CameraPreviewPanel()
+
+            if cameraManager.isOverridden {
+                CameraOverrideNoticeView()
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Color.primary.opacity(0.02))
 
-            Divider().padding(.horizontal, 12)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Camera names are readable without permission, but macOS
-                    // only honours a written camera preference from an app that
-                    // has been granted access - so the list always shows and the
-                    // banner explains why nothing would happen yet.
-                    if cameraManager.authState == .denied {
-                        CameraPermissionDeniedView()
-                    } else if cameraManager.authState == .notDetermined {
-                        CameraPermissionPromptView()
-                    }
-                    CameraSectionView()
-
-                    CameraScopeNoteView()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+            // Camera names are readable without permission, but macOS only
+            // honours a written camera preference from an app that has been
+            // granted access - so the list always shows and the banner explains
+            // why nothing would happen yet.
+            if cameraManager.authState == .denied {
+                CameraPermissionDeniedView()
+            } else if cameraManager.authState == .notDetermined {
+                CameraPermissionPromptView()
             }
-            .frame(maxHeight: 420)
+
+            CameraSectionView()
+
+            CameraScopeNoteView()
         }
     }
 }
@@ -379,56 +368,6 @@ struct IgnoredCameraRow: View {
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) { isHovering = hovering }
         }
-    }
-}
-
-// MARK: - Header controls
-
-struct CameraModeToggleView: View {
-    @EnvironmentObject var cameraManager: CameraManager
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    cameraManager.setAutoSwitch(true)
-                }
-            } label: {
-                toggleLabel("Auto", icon: "wand.and.stars", selected: cameraManager.isAutoSwitchEnabled, tint: .accentColor)
-            }
-            .buttonStyle(.plain)
-            .help("Always switch to the highest-priority camera that's connected")
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    cameraManager.setAutoSwitch(false)
-                }
-            } label: {
-                toggleLabel("Manual", icon: "hand.raised.fill", selected: !cameraManager.isAutoSwitchEnabled, tint: .orange)
-            }
-            .buttonStyle(.plain)
-            .help("Pick a camera yourself and leave the order alone")
-        }
-        .padding(4)
-        .background(
-            RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.05))
-        )
-        .animation(.easeInOut(duration: 0.2), value: cameraManager.isAutoSwitchEnabled)
-    }
-
-    private func toggleLabel(_ title: String, icon: String, selected: Bool, tint: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon).font(.system(size: 11))
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
-        .background(RoundedRectangle(cornerRadius: 10).fill(selected ? tint : Color.clear))
-        .foregroundColor(selected ? .white : .secondary)
     }
 }
 
