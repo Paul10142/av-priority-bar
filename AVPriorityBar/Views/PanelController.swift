@@ -35,7 +35,9 @@ final class PanelController: NSObject, NSWindowDelegate {
             }
         }
 
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.autosaveName = "AVPriorityBarStatusItem"
+        item.isVisible = true
         item.button?.target = self
         item.button?.action = #selector(statusItemClicked)
         statusItem = item
@@ -59,10 +61,10 @@ final class PanelController: NSObject, NSWindowDelegate {
     private func updateStatusItemImage() {
         guard let button = statusItem?.button else { return }
         let symbol: String
-        if audioManager.isActiveOutputMuted {
-            symbol = "speaker.slash.fill"
-        } else if audioManager.isActiveInputMuted {
+        if audioManager.isActiveInputMuted {
             symbol = "mic.slash.fill"
+        } else if audioManager.isActiveOutputMuted {
+            symbol = "speaker.slash.fill"
         } else if audioManager.currentMode == .headphone {
             symbol = "headphones"
         } else {
@@ -81,6 +83,10 @@ final class PanelController: NSObject, NSWindowDelegate {
         }
         image?.isTemplate = true
         button.image = image
+        // A status item with neither image nor title has zero width, which
+        // looks exactly like the app failing to launch.
+        button.title = image == nil ? "AV" : ""
+        button.imagePosition = .imageOnly
     }
 
     @objc private func statusItemClicked() {

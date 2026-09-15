@@ -121,19 +121,23 @@ class PriorityManager {
 
     func isNeverUse(_ device: AudioDevice) -> Bool {
         let list = defaults.array(forKey: neverUseKey) as? [String] ?? []
-        return list.contains(device.uid)
+        if list.contains(device.uid) { return true }
+        let names = defaults.array(forKey: neverUseKey + "Names") as? [String] ?? []
+        return names.contains(device.name)
     }
 
     func setNeverUse(_ device: AudioDevice, neverUse: Bool) {
         var list = defaults.array(forKey: neverUseKey) as? [String] ?? []
+        var names = defaults.array(forKey: neverUseKey + "Names") as? [String] ?? []
         if neverUse {
-            if !list.contains(device.uid) {
-                list.append(device.uid)
-            }
+            if !list.contains(device.uid) { list.append(device.uid) }
+            if !names.contains(device.name) { names.append(device.name) }
         } else {
             list.removeAll { $0 == device.uid }
+            names.removeAll { $0 == device.name }
         }
         defaults.set(list, forKey: neverUseKey)
+        defaults.set(names, forKey: neverUseKey + "Names")
     }
 
     // MARK: - Hidden Devices (per category)
@@ -143,47 +147,76 @@ class PriorityManager {
     private let hiddenHeadphonesKey = "hiddenHeadphones"
 
     func isHidden(_ device: AudioDevice) -> Bool {
-        let key = hiddenKey(for: device)
-        let hidden = defaults.array(forKey: key) as? [String] ?? []
-        return hidden.contains(device.uid)
+        isHidden(device, key: hiddenKey(for: device))
     }
 
     func isHidden(_ device: AudioDevice, inCategory category: OutputCategory) -> Bool {
-        let key = category == .speaker ? hiddenSpeakersKey : hiddenHeadphonesKey
-        let hidden = defaults.array(forKey: key) as? [String] ?? []
-        return hidden.contains(device.uid)
+        isHidden(device, key: category == .speaker ? hiddenSpeakersKey : hiddenHeadphonesKey)
     }
 
     func hideDevice(_ device: AudioDevice) {
-        let key = hiddenKey(for: device)
-        var hidden = defaults.array(forKey: key) as? [String] ?? []
-        if !hidden.contains(device.uid) {
-            hidden.append(device.uid)
-            defaults.set(hidden, forKey: key)
-        }
+        hide(device, key: hiddenKey(for: device))
     }
 
     func hideDevice(_ device: AudioDevice, inCategory category: OutputCategory) {
-        let key = category == .speaker ? hiddenSpeakersKey : hiddenHeadphonesKey
-        var hidden = defaults.array(forKey: key) as? [String] ?? []
-        if !hidden.contains(device.uid) {
-            hidden.append(device.uid)
-            defaults.set(hidden, forKey: key)
-        }
+        hide(device, key: category == .speaker ? hiddenSpeakersKey : hiddenHeadphonesKey)
     }
 
     func unhideDevice(_ device: AudioDevice) {
-        let key = hiddenKey(for: device)
-        var hidden = defaults.array(forKey: key) as? [String] ?? []
-        hidden.removeAll { $0 == device.uid }
-        defaults.set(hidden, forKey: key)
+        unhide(device, key: hiddenKey(for: device))
     }
 
     func unhideDevice(_ device: AudioDevice, fromCategory category: OutputCategory) {
-        let key = category == .speaker ? hiddenSpeakersKey : hiddenHeadphonesKey
-        var hidden = defaults.array(forKey: key) as? [String] ?? []
-        hidden.removeAll { $0 == device.uid }
-        defaults.set(hidden, forKey: key)
+        unhide(device, key: category == .speaker ? hiddenSpeakersKey : hiddenHeadphonesKey)
+    }
+
+    /// Hides every list a device can appear in - microphones included, which is
+    /// what "ignore entirely" is asked to do for devices that are both.
+    func hideDeviceEverywhere(_ device: AudioDevice) {
+        hide(device, key: hiddenSpeakersKey)
+        hide(device, key: hiddenHeadphonesKey)
+        hide(device, key: hiddenMicsKey)
+    }
+
+    func unhideDeviceEverywhere(_ device: AudioDevice) {
+        unhide(device, key: hiddenSpeakersKey)
+        unhide(device, key: hiddenHeadphonesKey)
+        unhide(device, key: hiddenMicsKey)
+    }
+
+    // Some devices - macOS's own CADefaultDeviceAggregate in particular - get a
+    // fresh UID every time they appear, so a UID-keyed ignore silently forgets
+    // them on the next launch. Names are recorded alongside and matched too.
+    private func namesKey(_ key: String) -> String { key + "Names" }
+
+    private func isHidden(_ device: AudioDevice, key: String) -> Bool {
+        let uids = defaults.array(forKey: key) as? [String] ?? []
+        if uids.contains(device.uid) { return true }
+        let names = defaults.array(forKey: namesKey(key)) as? [String] ?? []
+        return names.contains(device.name)
+    }
+
+    private func hide(_ device: AudioDevice, key: String) {
+        var uids = defaults.array(forKey: key) as? [String] ?? []
+        if !uids.contains(device.uid) {
+            uids.append(device.uid)
+            defaults.set(uids, forKey: key)
+        }
+        var names = defaults.array(forKey: namesKey(key)) as? [String] ?? []
+        if !names.contains(device.name) {
+            names.append(device.name)
+            defaults.set(names, forKey: namesKey(key))
+        }
+    }
+
+    private func unhide(_ device: AudioDevice, key: String) {
+        var uids = defaults.array(forKey: key) as? [String] ?? []
+        uids.removeAll { $0 == device.uid }
+        defaults.set(uids, forKey: key)
+
+        var names = defaults.array(forKey: namesKey(key)) as? [String] ?? []
+        names.removeAll { $0 == device.name }
+        defaults.set(names, forKey: namesKey(key))
     }
 
     private func hiddenKey(for device: AudioDevice) -> String {

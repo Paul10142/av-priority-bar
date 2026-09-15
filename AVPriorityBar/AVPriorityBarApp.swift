@@ -344,14 +344,19 @@ class AudioManager: ObservableObject {
         }
     }
 
+    /// Ignores the device in every list it can appear in. Devices with both
+    /// inputs and outputs - aggregates, interfaces - show up twice, and
+    /// "entirely" has to mean both.
     func hideDeviceEntirely(_ device: AudioDevice) {
-        priorityManager.hideDevice(device, inCategory: .speaker)
-        priorityManager.hideDevice(device, inCategory: .headphone)
+        priorityManager.hideDeviceEverywhere(device)
         refreshDevices()
+        applyHighestPriorityInput()
         applyHighestPriorityOutput()
     }
 
     func unhideDevice(_ device: AudioDevice, category: OutputCategory? = nil) {
+        // Unhiding from the ignored list undoes an "ignore entirely" too.
+        priorityManager.unhideDeviceEverywhere(device)
         if device.type == .input {
             priorityManager.unhideDevice(device)
         } else if let cat = category {
