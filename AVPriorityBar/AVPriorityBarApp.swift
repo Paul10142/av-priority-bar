@@ -1,5 +1,27 @@
 import SwiftUI
+import AppKit
 import CoreAudio
+
+/// Wires up the things that have to exist before any menu is opened: the global
+/// shortcut, and the floating camera window's idea of which camera to show.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor in
+            MirrorWindowController.shared.configure {
+                let manager = CameraManager.shared
+                guard let id = manager.currentPreferredID ?? manager.topPriorityCamera?.uniqueID else {
+                    return nil
+                }
+                let name = manager.cameras.first { $0.uniqueID == id }?.name ?? "Camera"
+                return (id: id, name: name)
+            }
+            HotKeyManager.shared.onTrigger = {
+                MirrorWindowController.shared.toggle()
+            }
+            HotKeyManager.shared.registerStoredHotKey()
+        }
+    }
+}
 
 @main
 struct AVPriorityBarApp: App {
@@ -7,7 +29,8 @@ struct AVPriorityBarApp: App {
     private let didMigrate = SettingsMigration.runIfNeeded()
 
     @StateObject private var audioManager = AudioManager()
-    @StateObject private var cameraManager = CameraManager()
+    @StateObject private var cameraManager = CameraManager.shared
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
         MenuBarExtra {

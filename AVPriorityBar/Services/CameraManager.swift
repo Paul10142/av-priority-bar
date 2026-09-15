@@ -6,6 +6,10 @@ import SwiftUI
 /// cameras connecting and disconnecting, and applies the system-wide preference.
 @MainActor
 final class CameraManager: ObservableObject {
+    /// Shared so the hotkey and the floating window can reach the same state
+    /// the panel is showing.
+    static let shared = CameraManager()
+
     @Published var cameras: [CameraDevice] = []
     @Published var ignoredCameras: [CameraDevice] = []
     @Published var currentPreferredID: String?

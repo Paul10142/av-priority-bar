@@ -61,36 +61,64 @@ final class CameraPreviewController: ObservableObject {
 
 struct CameraPreviewLayerView: NSViewRepresentable {
     let session: AVCaptureSession
+    var mirrored: Bool = false
 
     func makeNSView(context: Context) -> PreviewNSView {
         let view = PreviewNSView()
-        view.previewLayer.session = session
+        view.attach(session: session)
+        view.setMirrored(mirrored)
         return view
     }
 
     func updateNSView(_ nsView: PreviewNSView, context: Context) {
-        if nsView.previewLayer.session !== session {
-            nsView.previewLayer.session = session
-        }
+        nsView.attach(session: session)
+        nsView.setMirrored(mirrored)
     }
 
     final class PreviewNSView: NSView {
-        let previewLayer = AVCaptureVideoPreviewLayer()
+        private let previewLayer = AVCaptureVideoPreviewLayer()
 
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
             wantsLayer = true
+            layer = CALayer()
+            layer?.backgroundColor = NSColor.black.cgColor
             previewLayer.videoGravity = .resizeAspectFill
-            layer = previewLayer
+            // Implicit CoreAnimation actions on the preview layer are what make
+            // it blink when the surrounding SwiftUI view re-renders.
+            previewLayer.actions = [
+                "bounds": NSNull(), "position": NSNull(),
+                "transform": NSNull(), "contents": NSNull()
+            ]
+            layer?.addSublayer(previewLayer)
         }
 
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
 
+        func attach(session: AVCaptureSession) {
+            guard previewLayer.session !== session else { return }
+            previewLayer.session = session
+        }
+
+        func setMirrored(_ mirrored: Bool) {
+            let transform = mirrored ? CATransform3DMakeScale(-1, 1, 1) : CATransform3DIdentity
+            guard !CATransform3DEqualToTransform(previewLayer.transform, transform) else { return }
+            withoutAnimation { previewLayer.transform = transform }
+        }
+
         override func layout() {
             super.layout()
-            previewLayer.frame = bounds
+            guard previewLayer.frame != bounds else { return }
+            withoutAnimation { previewLayer.frame = bounds }
+        }
+
+        private func withoutAnimation(_ work: () -> Void) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            work()
+            CATransaction.commit()
         }
     }
 }
@@ -100,6 +128,7 @@ struct CameraPreviewLayerView: NSViewRepresentable {
 struct CameraPreviewPanel: View {
     @EnvironmentObject var cameraManager: CameraManager
     @StateObject private var controller = CameraPreviewController()
+    @ObservedObject private var settings = AppSettings.shared
 
     /// The camera actually in use.
     private var activeCamera: CameraDevice? {
@@ -132,7 +161,7 @@ struct CameraPreviewPanel: View {
                     .fill(Color.black.opacity(0.85))
 
                 if let session = controller.session {
-                    CameraPreviewLayerView(session: session)
+                    CameraPreviewLayerView(session: session, mirrored: settings.mirrorPreview)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 } else {
                     VStack(spacing: 6) {
@@ -163,6 +192,17 @@ struct CameraPreviewPanel: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
+
+                Button {
+                    MirrorWindowController.shared.show()
+                } label: {
+                    Image(systemName: "macwindow")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Open the floating camera window")
+
                 if isPeeking {
                     Text("PREVIEW")
                         .font(.system(size: 9, weight: .bold))

@@ -21,9 +21,26 @@ private struct ContentHeightKey: PreferenceKey {
 enum PanelTab: String, CaseIterable {
     case audio
     case camera
+    case settings
 
-    var label: String { self == .audio ? "Audio" : "Camera" }
-    var icon: String { self == .audio ? "speaker.wave.2.fill" : "camera.fill" }
+    /// Settings is reached from the gear in the footer, not from the tab row.
+    static var tabBarCases: [PanelTab] { [.audio, .camera] }
+
+    var label: String {
+        switch self {
+        case .audio: return "Audio"
+        case .camera: return "Camera"
+        case .settings: return "Settings"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .audio: return "speaker.wave.2.fill"
+        case .camera: return "camera.fill"
+        case .settings: return "gearshape.fill"
+        }
+    }
 }
 
 struct MenuBarView: View {
@@ -62,10 +79,10 @@ struct MenuBarView: View {
 
             ScrollView {
                 Group {
-                    if selectedTab == .camera {
-                        CameraContentView()
-                    } else {
-                        AudioContentView()
+                    switch selectedTab {
+                    case .camera: CameraContentView()
+                    case .settings: SettingsPageView()
+                    case .audio: AudioContentView()
                     }
                 }
                 .padding(.horizontal, 16)
@@ -98,7 +115,7 @@ struct TabSwitcherView: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(PanelTab.allCases, id: \.self) { tab in
+            ForEach(PanelTab.tabBarCases, id: \.self) { tab in
                 let isSelected = tab == selected
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) { onSelect(tab) }
@@ -135,6 +152,8 @@ struct FooterView: View {
         tab == .camera ? cameraManager.isEditMode : audioManager.isEditMode
     }
 
+    private var showsEdit: Bool { tab != .settings }
+
     var body: some View {
         HStack(spacing: 16) {
             if tab == .audio && !audioManager.isEditMode {
@@ -144,8 +163,9 @@ struct FooterView: View {
 
             Spacer()
 
-            LaunchAtLoginToggle()
+            SettingsGearButton()
 
+            if showsEdit {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     if tab == .camera {
@@ -165,6 +185,7 @@ struct FooterView: View {
             }
             .buttonStyle(.plain)
             .help(tab == .camera ? "Show every camera ever connected" : "Show every audio device ever connected")
+            }
 
             Button {
                 NSApplication.shared.terminate(nil)
@@ -205,45 +226,44 @@ struct AudioContentView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            VStack(spacing: 10) {
-                DeviceSectionView(
-                    title: "Speakers",
-                    icon: "speaker.wave.2.fill",
-                    devices: audioManager.speakerDevices,
-                    currentDeviceId: audioManager.currentOutputId,
-                    onMove: audioManager.moveSpeakerDevice,
-                    onSelect: { device in
-                        audioManager.setMode(.speaker)
-                        audioManager.setOutputDevice(device)
-                    },
-                    onHide: { audioManager.hideDevice($0, category: .speaker) },
-                    onUnhide: { audioManager.unhideDevice($0, category: .speaker) },
-                    category: .speaker,
-                    showCategoryPicker: true,
-                    isActiveCategory: audioManager.currentMode == .speaker
-                )
+            VStack(spacing: 8) {
                 DeviceVolumeSliderView(device: activeSpeaker, fallbackIcon: "speaker.wave.2.fill")
-            }
-
-            VStack(spacing: 10) {
-                DeviceSectionView(
-                    title: "Headphones",
-                    icon: "headphones",
-                    devices: audioManager.headphoneDevices,
-                    currentDeviceId: audioManager.currentOutputId,
-                    onMove: audioManager.moveHeadphoneDevice,
-                    onSelect: { device in
-                        audioManager.setMode(.headphone)
-                        audioManager.setOutputDevice(device)
-                    },
-                    onHide: { audioManager.hideDevice($0, category: .headphone) },
-                    onUnhide: { audioManager.unhideDevice($0, category: .headphone) },
-                    category: .headphone,
-                    showCategoryPicker: true,
-                    isActiveCategory: audioManager.currentMode == .headphone
-                )
                 DeviceVolumeSliderView(device: activeHeadphone, fallbackIcon: "headphones")
             }
+
+            DeviceSectionView(
+                title: "Speakers",
+                icon: "speaker.wave.2.fill",
+                devices: audioManager.speakerDevices,
+                currentDeviceId: audioManager.currentOutputId,
+                onMove: audioManager.moveSpeakerDevice,
+                onSelect: { device in
+                    audioManager.setMode(.speaker)
+                    audioManager.setOutputDevice(device)
+                },
+                onHide: { audioManager.hideDevice($0, category: .speaker) },
+                onUnhide: { audioManager.unhideDevice($0, category: .speaker) },
+                category: .speaker,
+                showCategoryPicker: true,
+                isActiveCategory: audioManager.currentMode == .speaker
+            )
+
+            DeviceSectionView(
+                title: "Headphones",
+                icon: "headphones",
+                devices: audioManager.headphoneDevices,
+                currentDeviceId: audioManager.currentOutputId,
+                onMove: audioManager.moveHeadphoneDevice,
+                onSelect: { device in
+                    audioManager.setMode(.headphone)
+                    audioManager.setOutputDevice(device)
+                },
+                onHide: { audioManager.hideDevice($0, category: .headphone) },
+                onUnhide: { audioManager.unhideDevice($0, category: .headphone) },
+                category: .headphone,
+                showCategoryPicker: true,
+                isActiveCategory: audioManager.currentMode == .headphone
+            )
 
             VStack(spacing: 10) {
                 DeviceSectionView(
@@ -300,12 +320,14 @@ struct DeviceVolumeSliderView: View {
                 Slider(
                     value: Binding(
                         get: { Double(level) },
-                        set: { audioManager.setVolume(Float($0), for: device) }
+                        set: {
+                        if isMuted { audioManager.toggleMute(device) }
+                        audioManager.setVolume(Float($0), for: device)
+                    }
                     ),
                     in: 0...1
                 )
                 .controlSize(.small)
-                .disabled(isMuted)
 
                 Text("\(Int(level * 100))%")
                     .font(.system(size: 11, design: .monospaced))
@@ -533,5 +555,35 @@ struct LaunchAtLoginToggle: View {
         }
         .buttonStyle(.plain)
         .help(launchManager.isEnabled ? "Disable launch at login" : "Enable launch at login")
+    }
+}
+
+/// Gear in the footer: swaps the panel to Settings and back to where you were.
+struct SettingsGearButton: View {
+    @AppStorage("selectedTab") private var selectedTabRaw: String = PanelTab.audio.rawValue
+    @AppStorage("tabBeforeSettings") private var previousTabRaw: String = PanelTab.audio.rawValue
+
+    private var isShowingSettings: Bool { selectedTabRaw == PanelTab.settings.rawValue }
+
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if isShowingSettings {
+                    selectedTabRaw = previousTabRaw
+                } else {
+                    previousTabRaw = selectedTabRaw
+                    selectedTabRaw = PanelTab.settings.rawValue
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: isShowingSettings ? "chevron.backward" : "gearshape")
+                    .font(.system(size: 12))
+                Text(isShowingSettings ? "Back" : "Settings")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(isShowingSettings ? .accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 }

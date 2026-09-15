@@ -6,10 +6,13 @@ import AVFoundation
 /// scrolling are owned by MenuBarView, same as the audio sections.
 struct CameraContentView: View {
     @EnvironmentObject var cameraManager: CameraManager
+    @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            CameraPreviewPanel()
+            if settings.showPreviewInPanel {
+                CameraPreviewPanel()
+            }
 
             if cameraManager.isOverridden {
                 CameraOverrideNoticeView()
