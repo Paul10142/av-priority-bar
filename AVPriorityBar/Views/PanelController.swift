@@ -13,6 +13,8 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     private var statusItem: NSStatusItem?
     private var panel: NSPanel?
+    private var hostingView: NSHostingView<AnyView>?
+    private var scrollView: NSScrollView?
     private var outsideClickMonitor: Any?
     private var escapeMonitor: Any?
     private var cancellables = Set<AnyCancellable>()
@@ -25,6 +27,14 @@ final class PanelController: NSObject, NSWindowDelegate {
     // MARK: - Menu bar item
 
     func install() {
+        // Smoke test hook: lets a build be launched with the panel already open,
+        // so "does it survive being shown?" can be checked without a click.
+        if ProcessInfo.processInfo.environment["AVPB_AUTO_OPEN_PANEL"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                Task { @MainActor in self?.open() }
+            }
+        }
+
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
         item.button?.action = #selector(statusItemClicked)
@@ -87,7 +97,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         let panel = panel ?? makePanel()
         self.panel = panel
 
-        applyWidth(to: panel)
+        resizeToFitContent()
         position(panel)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -105,8 +115,9 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     private func makePanel() -> NSPanel {
+        let width = CGFloat(AppSettings.shared.panelWidth)
         let panel = KeyablePanel(
-            contentRect: NSRect(x: 0, y: 0, width: AppSettings.shared.panelWidth, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: width, height: 200),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -120,23 +131,71 @@ final class PanelController: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
 
-        let root = MenuBarView()
-            .environmentObject(audioManager)
-            .environmentObject(cameraManager)
-            .background(PanelBackground())
+        let root = AnyView(
+            MenuBarView()
+                .environmentObject(audioManager)
+                .environmentObject(cameraManager)
+        )
 
-        let hosting = NSHostingController(rootView: root)
-        hosting.sizingOptions = [.preferredContentSize]
-        panel.contentViewController = hosting
+        // The SwiftUI view is the scroll view's document, so its height is its
+        // own business. Letting the window size drive the content's height and
+        // the content's height drive the window size is a layout loop, and
+        // SwiftUI resolves that loop by overflowing the stack.
+        let hosting = NSHostingView(rootView: root)
+        hosting.sizingOptions = [.intrinsicContentSize]
+        hosting.translatesAutoresizingMaskIntoConstraints = true
+        hosting.frame = NSRect(x: 0, y: 0, width: width, height: hosting.intrinsicContentSize.height)
+        hosting.postsFrameChangedNotifications = true
+        hostingView = hosting
+
+        let scroll = NSScrollView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.documentView = hosting
+        scroll.automaticallyAdjustsContentInsets = false
+        scrollView = scroll
+
+        let background = NSVisualEffectView()
+        background.material = .menu
+        background.blendingMode = .behindWindow
+        background.state = .active
+        background.wantsLayer = true
+        background.layer?.cornerRadius = 12
+        background.layer?.masksToBounds = true
+        background.addSubview(scroll)
+        scroll.frame = background.bounds
+        scroll.autoresizingMask = [.width, .height]
+        panel.contentView = background
+
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(contentSizeChanged),
+            name: NSView.frameDidChangeNotification, object: hosting
+        )
         return panel
     }
 
-    private func applyWidth(to panel: NSPanel) {
-        var frame = panel.frame
+    @objc private func contentSizeChanged() {
+        resizeToFitContent()
+    }
+
+    /// Window height follows the content, clamped to what the screen can show.
+    private func resizeToFitContent() {
+        guard let panel, let hosting = hostingView else { return }
         let width = CGFloat(AppSettings.shared.panelWidth)
-        guard abs(frame.width - width) > 1 else { return }
-        frame.size.width = width
-        panel.setFrame(frame, display: false)
+        let screenLimit = (panel.screen ?? NSScreen.main)?.visibleFrame.height ?? 800
+        let maxHeight = min(PanelMetrics.maxContentHeight, screenLimit - 40)
+        let contentHeight = max(hosting.intrinsicContentSize.height, 120)
+        let height = min(contentHeight, maxHeight)
+
+        if abs(hosting.frame.width - width) > 1 || abs(hosting.frame.height - contentHeight) > 1 {
+            hosting.frame = NSRect(x: 0, y: 0, width: width, height: contentHeight)
+        }
+        guard abs(panel.frame.height - height) > 1 || abs(panel.frame.width - width) > 1 else { return }
+        var frame = panel.frame
+        frame.origin.y += frame.height - height
+        frame.size = NSSize(width: width, height: height)
+        panel.setFrame(frame, display: true)
     }
 
     /// Under the menu bar icon, or pinned to the top right - the icon's own
@@ -183,7 +242,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// Called when the width setting changes while the panel is open.
     func applySettings() {
         guard let panel, panel.isVisible else { return }
-        applyWidth(to: panel)
+        resizeToFitContent()
         position(panel)
     }
 }
@@ -193,20 +252,4 @@ final class PanelController: NSObject, NSWindowDelegate {
 private final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
-}
-
-/// The rounded, blurred backing the system would have drawn for a menu.
-private struct PanelBackground: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .menu
-        view.blendingMode = .behindWindow
-        view.state = .active
-        view.wantsLayer = true
-        view.layer?.cornerRadius = 12
-        view.layer?.masksToBounds = true
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }

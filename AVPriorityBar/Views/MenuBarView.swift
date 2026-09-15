@@ -4,18 +4,9 @@ import AppKit
 
 /// Height the panel gives its scrolling middle. The window is sized to fit its
 /// content, so this has to be measured and clamped rather than left to grow.
-private enum PanelMetrics {
-    static let minContentHeight: CGFloat = 120
-    /// Only a genuinely huge list should ever scroll; below this the panel just
-    /// grows to fit whatever tab is showing.
-    static let maxContentHeight: CGFloat = 640
-}
-
-private struct ContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
+enum PanelMetrics {
+    /// The panel grows with its content and only scrolls past this.
+    static let maxContentHeight: CGFloat = 620
 }
 
 enum PanelTab: String, CaseIterable {
@@ -47,24 +38,15 @@ struct MenuBarView: View {
     @EnvironmentObject var audioManager: AudioManager
     @EnvironmentObject var cameraManager: CameraManager
     @AppStorage("selectedTab") private var selectedTabRaw: String = PanelTab.audio.rawValue
-    @State private var contentHeight: CGFloat = PanelMetrics.minContentHeight
 
     private var selectedTab: PanelTab {
         PanelTab(rawValue: selectedTabRaw) ?? .audio
-    }
-
-    /// The scroll area is given an explicit height so the menu bar window
-    /// actually resizes when the content changes - left to itself it keeps
-    /// whatever height it had when it first opened and clips the rest.
-    private var scrollHeight: CGFloat {
-        min(max(contentHeight, PanelMetrics.minContentHeight), PanelMetrics.maxContentHeight)
     }
 
     var body: some View {
         VStack(spacing: 0) {
             TabSwitcherView(selected: selectedTab) { tab in
                 selectedTabRaw = tab.rawValue
-                contentHeight = PanelMetrics.minContentHeight
                 if tab == .camera {
                     cameraManager.requestAccessIfNeeded()
                     cameraManager.refreshCameras()
@@ -80,28 +62,16 @@ struct MenuBarView: View {
             Divider()
                 .padding(.horizontal, 12)
 
-            ScrollView {
-                Group {
-                    switch selectedTab {
-                    case .camera: CameraContentView()
-                    case .settings: SettingsPageView()
-                    case .audio: AudioContentView()
-                    }
+            Group {
+                switch selectedTab {
+                case .camera: CameraContentView()
+                case .settings: SettingsPageView()
+                case .audio: AudioContentView()
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 14)
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
-                    }
-                )
             }
-            .frame(height: scrollHeight)
-            .onPreferenceChange(ContentHeightKey.self) { height in
-                guard height > 0 else { return }
-                contentHeight = height
-            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 14)
 
             Divider()
                 .padding(.horizontal, 12)
