@@ -13,6 +13,9 @@ final class HotKeyManager: ObservableObject {
     @Published private(set) var modifiers: UInt32?
     /// Set while the settings page is waiting for the user to press a combo.
     @Published var isRecording = false
+    /// macOS refuses combinations another app already owns; the settings page
+    /// says so rather than leaving a shortcut that silently does nothing.
+    @Published private(set) var registrationFailed = false
 
     var onTrigger: (() -> Void)?
 
@@ -58,6 +61,9 @@ final class HotKeyManager: ObservableObject {
         let status = RegisterEventHotKey(keyCode, modifiers, hotKeyID, GetApplicationEventTarget(), 0, &ref)
         if status == noErr {
             hotKeyRef = ref
+            registrationFailed = false
+        } else {
+            registrationFailed = true
         }
     }
 

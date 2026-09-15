@@ -107,6 +107,13 @@ struct SettingsPageView: View {
                     }
                 }
 
+                if hotKey.registrationFailed {
+                    Text("Another app already owns that combination - pick a different one.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 if NotchClickController.shared.isSupported {
                     SettingsToggleRow(
                         title: "Click the notch to open it",
