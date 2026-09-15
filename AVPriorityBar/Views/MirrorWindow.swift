@@ -19,6 +19,9 @@ final class MirrorWindowController: NSObject, NSWindowDelegate {
     /// Where the menu bar panel was last opened, used to put the window under
     /// the menu bar icon - AppKit doesn't hand out a MenuBarExtra's frame.
     var lastMenuBarPoint: NSPoint?
+    /// True while the controller is moving the window itself, so its own moves
+    /// aren't mistaken for the user dragging it.
+    private var isPositioning = false
 
     var isOpen: Bool { window?.isVisible ?? false }
 
@@ -101,7 +104,9 @@ final class MirrorWindowController: NSObject, NSWindowDelegate {
             let clampedX = min(max(anchorX - size.width / 2, visible.minX + margin), visible.maxX - size.width - margin)
             origin = NSPoint(x: clampedX, y: visible.maxY - size.height - 4)
         }
+        isPositioning = true
         panel.setFrameOrigin(origin)
+        DispatchQueue.main.async { [weak self] in self?.isPositioning = false }
     }
 
     private func makeWindow() -> NSPanel {
@@ -144,8 +149,9 @@ final class MirrorWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowDidMove(_ notification: Notification) {
-        // Moving it by hand means "remember this spot".
-        if AppSettings.shared.windowPosition != .remember, window?.inLiveResize == false {
+        // Dragging it by hand means "remember this spot" - but only a drag.
+        guard !isPositioning, window?.inLiveResize == false else { return }
+        if AppSettings.shared.windowPosition != .remember {
             AppSettings.shared.windowPosition = .remember
         }
     }

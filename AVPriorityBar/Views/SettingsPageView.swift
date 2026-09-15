@@ -9,6 +9,28 @@ struct SettingsPageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            group("This menu") {
+                SettingsRow(label: "Opens at") {
+                    Picker("", selection: $settings.panelPosition) {
+                        ForEach(PanelPosition.allCases) { position in
+                            Text(position.label).tag(position)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                }
+                SettingsRow(label: "Width") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.panelWidth, in: 300...560, step: 10)
+                            .controlSize(.small)
+                        Text("\(Int(settings.panelWidth))pt")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .frame(width: 46, alignment: .trailing)
+                    }
+                }
+            }
+
             group("Camera window") {
                 SettingsToggleRow(title: "Mirror the image", isOn: $settings.mirrorPreview)
                 SettingsToggleRow(title: "Keep in front of other windows", isOn: $settings.keepWindowInFront)

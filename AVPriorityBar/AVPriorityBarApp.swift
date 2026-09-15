@@ -2,17 +2,17 @@ import SwiftUI
 import AppKit
 import CoreAudio
 
-/// Wires up the things that have to exist before any menu is opened: the global
-/// shortcut, and the floating camera window's idea of which camera to show.
+/// Wires up everything that has to exist before any menu is opened.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
+            SettingsMigration.runIfNeeded()
+            PanelController.shared.install()
+
             MirrorWindowController.shared.configure {
                 let manager = CameraManager.shared
                 let preferred = manager.selectedCameraID ?? manager.currentPreferredID
-                guard let id = preferred ?? manager.topPriorityCamera?.uniqueID else {
-                    return nil
-                }
+                guard let id = preferred ?? manager.topPriorityCamera?.uniqueID else { return nil }
                 let name = manager.cameras.first { $0.uniqueID == id }?.name ?? "Camera"
                 return (id: id, name: name)
             }
@@ -25,32 +25,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// The menu bar item and its panel are run from AppKit (see PanelController),
+/// so this scene exists only to give SwiftUI an app to start.
 @main
 struct AVPriorityBarApp: App {
-    // Declared first so inherited settings are in place before the managers read them.
-    private let didMigrate = SettingsMigration.runIfNeeded()
-
-    @StateObject private var audioManager = AudioManager()
-    @StateObject private var cameraManager = CameraManager.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarView()
-                .environmentObject(audioManager)
-                .environmentObject(cameraManager)
-        } label: {
-            // Reflects what's actually happening: a slashed speaker when output
-            // is muted, a flashing slashed mic when input is, and the volume
-            // level in the waves the rest of the time.
-            MenuBarLabel(
-                volume: audioManager.volume,
-                isOutputMuted: audioManager.isActiveOutputMuted,
-                isInputMuted: audioManager.isActiveInputMuted,
-                mode: audioManager.currentMode
-            )
+        Settings {
+            EmptyView()
         }
-        .menuBarExtraStyle(.window)
     }
 }
 
@@ -106,6 +90,9 @@ struct VolumeMeterView: View {
 
 @MainActor
 class AudioManager: ObservableObject {
+    /// Shared so the menu bar icon can track it without a view in between.
+    static let shared = AudioManager()
+
     @Published var inputDevices: [AudioDevice] = []
     @Published var speakerDevices: [AudioDevice] = []
     @Published var headphoneDevices: [AudioDevice] = []

@@ -108,14 +108,9 @@ struct MenuBarView: View {
 
             FooterView(tab: selectedTab)
         }
-        .frame(width: 340)
+        .frame(width: CGFloat(AppSettings.shared.panelWidth))
         .onAppear {
-            // Remember where the menu was opened, so the floating window can be
-            // placed under the menu bar icon.
             MirrorWindowController.shared.lastMenuBarPoint = NSEvent.mouseLocation
-            if selectedTab == .camera && AppSettings.shared.openWindowWithCameraTab {
-                MirrorWindowController.shared.show()
-            }
         }
     }
 }
@@ -166,55 +161,124 @@ struct FooterView: View {
     private var showsEdit: Bool { tab != .settings }
 
     var body: some View {
-        HStack(spacing: 16) {
-            if tab == .audio && !audioManager.isEditMode {
-                HiddenDevicesToggleView()
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+        HStack(spacing: 10) {
+            if tab != .settings {
+                IgnoredDevicesToggleView(tab: tab)
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
             SettingsGearButton()
 
             if showsEdit {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if tab == .camera {
-                        cameraManager.toggleEditMode()
-                    } else {
-                        audioManager.toggleEditMode()
+                FooterButton(
+                    icon: isEditing ? "checkmark.circle.fill" : "pencil.circle",
+                    title: isEditing ? "Done" : "Edit",
+                    tint: isEditing ? .accentColor : .secondary
+                ) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if tab == .camera {
+                            cameraManager.toggleEditMode()
+                        } else {
+                            audioManager.toggleEditMode()
+                        }
                     }
                 }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.circle")
-                        .font(.system(size: 12))
-                    Text(isEditing ? "Done" : "Edit")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(isEditing ? .accentColor : .secondary)
-            }
-            .buttonStyle(.plain)
-            .help(tab == .camera ? "Show every camera ever connected" : "Show every audio device ever connected")
+                .help(tab == .camera ? "Show every camera ever connected" : "Show every audio device ever connected")
             }
 
-            Button {
+            FooterButton(icon: "power", title: "Quit", tint: .secondary) {
                 NSApplication.shared.terminate(nil)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
-                    Text("Quit App")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(.secondary)
             }
-            .buttonStyle(.plain)
             .help("Quit AV Priority Bar")
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(10)
         .animation(.easeInOut(duration: 0.2), value: isEditing)
+    }
+}
+
+/// Footer buttons share one shape so their padding matches on every edge.
+struct FooterButton: View {
+    let icon: String
+    let title: String
+    var tint: Color = .secondary
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+                    .fixedSize()
+            }
+            .foregroundColor(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// One ignored-devices control for both tabs, so cameras behave like audio
+/// rather than carrying their own section in the list.
+struct IgnoredDevicesToggleView: View {
+    @EnvironmentObject var audioManager: AudioManager
+    @EnvironmentObject var cameraManager: CameraManager
+    let tab: PanelTab
+    @State private var isExpanded = false
+
+    private var hiddenAudio: [AudioDevice] {
+        guard tab == .audio, !audioManager.isEditMode else { return [] }
+        return audioManager.hiddenInputDevices
+            + audioManager.hiddenSpeakerDevices
+            + audioManager.hiddenHeadphoneDevices
+    }
+
+    private var ignoredCameras: [CameraDevice] {
+        guard tab == .camera, !cameraManager.isEditMode else { return [] }
+        return cameraManager.ignoredCameras
+    }
+
+    private var count: Int { hiddenAudio.count + ignoredCameras.count }
+
+    var body: some View {
+        if count > 0 {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    Image(systemName: "eye.slash")
+                        .font(.system(size: 11))
+                    Text("\(count)")
+                        .font(.system(size: 12))
+                        .fixedSize()
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(tab == .camera ? "Ignored cameras" : "Ignored audio devices")
+            .popover(isPresented: $isExpanded, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(hiddenAudio, id: \.id) { device in
+                        HiddenDeviceRow(device: device)
+                    }
+                    ForEach(ignoredCameras) { camera in
+                        IgnoredCameraRow(camera: camera)
+                    }
+                }
+                .padding(12)
+                .frame(minWidth: 220)
+            }
+        }
     }
 }
 
@@ -459,51 +523,6 @@ struct DeviceSectionView: View {
                     onUnhide: onUnhide,
                     category: category
                 )
-            }
-        }
-    }
-}
-
-struct HiddenDevicesToggleView: View {
-    @EnvironmentObject var audioManager: AudioManager
-    @State private var isExpanded = false
-
-    var allHiddenDevices: [AudioDevice] {
-        audioManager.hiddenInputDevices +
-        audioManager.hiddenSpeakerDevices +
-        audioManager.hiddenHeadphoneDevices
-    }
-
-    var body: some View {
-        if allHiddenDevices.isEmpty {
-            Text("")
-                .frame(height: 1)
-        } else {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    Image(systemName: "eye.slash")
-                        .font(.system(size: 11))
-                    Text("\(allHiddenDevices.count) ignored")
-                        .font(.system(size: 12))
-                }
-                .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-            .popover(isPresented: $isExpanded, arrowEdge: .bottom) {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(allHiddenDevices, id: \.id) { device in
-                        HiddenDeviceRow(device: device)
-                    }
-                }
-                .padding(12)
-                .frame(minWidth: 220)
             }
         }
     }

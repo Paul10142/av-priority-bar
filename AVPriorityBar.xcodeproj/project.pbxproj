@@ -31,6 +31,7 @@
 		A10000000000000000000041 /* SettingsPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000041 /* SettingsPageView.swift */; };
 		A10000000000000000000042 /* MicLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000042 /* MicLevelMonitor.swift */; };
 		A10000000000000000000043 /* MicCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000043 /* MicCheckView.swift */; };
+		A10000000000000000000044 /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000044 /* PanelController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +61,7 @@
 		A20000000000000000000041 /* SettingsPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPageView.swift; sourceTree = "<group>"; };
 		A20000000000000000000042 /* MicLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicLevelMonitor.swift; sourceTree = "<group>"; };
 		A20000000000000000000043 /* MicCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicCheckView.swift; sourceTree = "<group>"; };
+		A20000000000000000000044 /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -131,6 +133,7 @@
 				A20000000000000000000006 /* DeviceListView.swift */,
 				A20000000000000000000036 /* CameraListView.swift */,
 				A20000000000000000000037 /* CameraPreviewView.swift */,
+				A20000000000000000000044 /* PanelController.swift */,
 				A20000000000000000000043 /* MicCheckView.swift */,
 				A20000000000000000000041 /* SettingsPageView.swift */,
 				A20000000000000000000040 /* MirrorWindow.swift */,
@@ -233,6 +236,7 @@
 				A10000000000000000000034 /* CameraManager.swift in Sources */,
 				A10000000000000000000035 /* SettingsMigration.swift in Sources */,
 				A10000000000000000000036 /* CameraListView.swift in Sources */,
+				A10000000000000000000044 /* PanelController.swift in Sources */,
 				A10000000000000000000043 /* MicCheckView.swift in Sources */,
 				A10000000000000000000042 /* MicLevelMonitor.swift in Sources */,
 				A10000000000000000000041 /* SettingsPageView.swift in Sources */,

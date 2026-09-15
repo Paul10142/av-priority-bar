@@ -65,19 +65,6 @@ struct CameraSectionView: View {
                 )
             }
 
-            if !cameraManager.ignoredCameras.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Ignored")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-                        .padding(.top, 6)
-                    ForEach(cameraManager.ignoredCameras) { camera in
-                        IgnoredCameraRow(camera: camera)
-                    }
-                }
-            }
         }
     }
 }
