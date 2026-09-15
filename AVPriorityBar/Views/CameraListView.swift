@@ -8,7 +8,7 @@ struct CameraContentView: View {
     @EnvironmentObject var cameraManager: CameraManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             CameraPreviewPanel()
 
             if cameraManager.isOverridden {
@@ -490,6 +490,5 @@ struct CameraScopeNoteView: View {
                 .transition(.opacity)
             }
         }
-        .padding(.top, 4)
     }
 }

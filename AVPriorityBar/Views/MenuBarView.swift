@@ -5,8 +5,10 @@ import AppKit
 /// Height the panel gives its scrolling middle. The window is sized to fit its
 /// content, so this has to be measured and clamped rather than left to grow.
 private enum PanelMetrics {
-    static let minContentHeight: CGFloat = 140
-    static let maxContentHeight: CGFloat = 440
+    static let minContentHeight: CGFloat = 120
+    /// Only a genuinely huge list should ever scroll; below this the panel just
+    /// grows to fit whatever tab is showing.
+    static let maxContentHeight: CGFloat = 640
 }
 
 private struct ContentHeightKey: PreferenceKey {
@@ -45,14 +47,15 @@ struct MenuBarView: View {
         VStack(spacing: 0) {
             TabSwitcherView(selected: selectedTab) { tab in
                 selectedTabRaw = tab.rawValue
+                contentHeight = PanelMetrics.minContentHeight
                 if tab == .camera {
                     cameraManager.requestAccessIfNeeded()
                     cameraManager.refreshCameras()
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 10)
-            .padding(.bottom, 10)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
 
             Divider()
                 .padding(.horizontal, 12)
@@ -66,7 +69,8 @@ struct MenuBarView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 14)
                 .background(
                     GeometryReader { proxy in
                         Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
@@ -165,12 +169,16 @@ struct FooterView: View {
             Button {
                 NSApplication.shared.terminate(nil)
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary.opacity(0.6))
+                HStack(spacing: 4) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                    Text("Quit App")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Quit")
+            .help("Quit AV Priority Bar")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
