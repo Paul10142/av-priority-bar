@@ -1,0 +1,196 @@
+import Foundation
+import AVFoundation
+import SwiftUI
+
+/// Camera-side counterpart to `AudioManager`: keeps the priority list, reacts to
+/// cameras connecting and disconnecting, and applies the system-wide preference.
+@MainActor
+final class CameraManager: ObservableObject {
+    @Published var cameras: [CameraDevice] = []
+    @Published var ignoredCameras: [CameraDevice] = []
+    @Published var currentPreferredID: String?
+    @Published var authState: CameraAuthState = .notDetermined
+    @Published var isAutoSwitchEnabled: Bool = true
+    @Published var isEditMode: Bool = false
+
+    private let service = CameraService()
+    let priorityManager = CameraPriorityManager()
+    private var connectedIDs: Set<String> = []
+
+    init() {
+        authState = service.authState
+        isAutoSwitchEnabled = priorityManager.isAutoSwitchEnabled
+        refreshCameras()
+        seedDefaultOrderIfNeeded()
+        setupListeners()
+        if isAutoSwitchEnabled {
+            applyHighestPriorityCamera()
+        }
+    }
+
+    /// On a first run there is no saved order, so the raw discovery order would
+    /// decide which camera the whole system gets - and that order can easily put
+    /// a virtual camera first. Seed something sensible instead: whatever macOS is
+    /// already using stays on top, then real hardware, then software cameras.
+    private func seedDefaultOrderIfNeeded() {
+        guard priorityManager.getPriorityOrder().isEmpty, !cameras.isEmpty else { return }
+        let current = service.currentPreferredUniqueID
+        let seeded = cameras.sorted { a, b in
+            if a.uniqueID == current { return true }
+            if b.uniqueID == current { return false }
+            if a.kind.defaultRank != b.kind.defaultRank {
+                return a.kind.defaultRank < b.kind.defaultRank
+            }
+            return a.name < b.name
+        }
+        priorityManager.savePriorities(seeded)
+        refreshCameras()
+    }
+
+    // MARK: - Permission
+
+    /// Camera names are only readable once access is granted, so the list stays
+    /// empty until the user approves the prompt.
+    func requestAccessIfNeeded() {
+        guard authState == .notDetermined else { return }
+        service.requestAccess { [weak self] _ in
+            guard let self else { return }
+            self.authState = self.service.authState
+            self.refreshCameras()
+            if self.isAutoSwitchEnabled { self.applyHighestPriorityCamera() }
+        }
+    }
+
+    func openPrivacySettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera")!
+        NSWorkspace.shared.open(url)
+    }
+
+    // MARK: - Refresh
+
+    func refreshCameras() {
+        authState = service.authState
+        let connected = service.getDevices()
+        connectedIDs = Set(connected.map { $0.uniqueID })
+        for camera in connected {
+            priorityManager.rememberCamera(camera)
+        }
+
+        var all = connected
+        if isEditMode {
+            // Edit mode also shows every camera ever seen, so old ones can be
+            // ranked or forgotten while unplugged.
+            for stored in priorityManager.getKnownCameras() where !connectedIDs.contains(stored.uniqueID) {
+                all.append(.disconnected(uniqueID: stored.uniqueID, name: stored.name, kind: stored.kind))
+            }
+        }
+
+        let sorted = priorityManager.sortByPriority(all)
+        if isEditMode {
+            cameras = sorted
+            ignoredCameras = []
+        } else {
+            cameras = sorted.filter { !priorityManager.isIgnored($0) }
+            ignoredCameras = sorted.filter { priorityManager.isIgnored($0) }
+        }
+        currentPreferredID = service.currentPreferredUniqueID
+    }
+
+    func isConnected(_ camera: CameraDevice) -> Bool {
+        connectedIDs.contains(camera.uniqueID)
+    }
+
+    func lastSeen(_ camera: CameraDevice) -> String? {
+        guard !isConnected(camera) else { return nil }
+        return priorityManager.getStoredCamera(uniqueID: camera.uniqueID)?.lastSeenRelative
+    }
+
+    var topPriorityCamera: CameraDevice? {
+        cameras.first { isConnected($0) && !priorityManager.isIgnored($0) }
+    }
+
+    /// True when the active camera is not the one priority says it should be -
+    /// usually because another app wrote its own preference.
+    var isOverridden: Bool {
+        guard isAutoSwitchEnabled, let top = topPriorityCamera, let current = currentPreferredID else { return false }
+        return top.uniqueID != current
+    }
+
+    // MARK: - Actions
+
+    func selectCamera(_ camera: CameraDevice) {
+        guard isConnected(camera) else { return }
+        if isAutoSwitchEnabled {
+            // In auto mode a click means "this is now my first choice".
+            priorityManager.promoteToTop(camera)
+        }
+        service.setPreferred(uniqueID: camera.uniqueID)
+        refreshCameras()
+    }
+
+    func moveCamera(from source: IndexSet, to destination: Int) {
+        cameras.move(fromOffsets: source, toOffset: destination)
+        priorityManager.savePriorities(cameras)
+        if isAutoSwitchEnabled {
+            applyHighestPriorityCamera()
+        }
+        refreshCameras()
+    }
+
+    func setAutoSwitch(_ enabled: Bool) {
+        isAutoSwitchEnabled = enabled
+        priorityManager.isAutoSwitchEnabled = enabled
+        if enabled { applyHighestPriorityCamera() }
+    }
+
+    func isIgnored(_ camera: CameraDevice) -> Bool {
+        priorityManager.isIgnored(camera)
+    }
+
+    func setIgnored(_ camera: CameraDevice, ignored: Bool) {
+        priorityManager.setIgnored(camera, ignored: ignored)
+        refreshCameras()
+        if isAutoSwitchEnabled { applyHighestPriorityCamera() }
+    }
+
+    func forgetCamera(_ camera: CameraDevice) {
+        priorityManager.forgetCamera(camera.uniqueID)
+        refreshCameras()
+    }
+
+    func toggleEditMode() {
+        isEditMode.toggle()
+        refreshCameras()
+    }
+
+    /// Hands the system back to macOS's own camera ordering.
+    func resetSystemPreference() {
+        service.clearPreferred()
+        refreshCameras()
+    }
+
+    // MARK: - Auto-switching
+
+    private func applyHighestPriorityCamera() {
+        guard let top = topPriorityCamera else { return }
+        guard top.uniqueID != service.currentPreferredUniqueID else { return }
+        service.setPreferred(uniqueID: top.uniqueID)
+        currentPreferredID = service.currentPreferredUniqueID
+    }
+
+    private func setupListeners() {
+        service.onDevicesChanged = { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.refreshCameras()
+                if self.isAutoSwitchEnabled { self.applyHighestPriorityCamera() }
+            }
+        }
+        service.onPreferredCameraChanged = { [weak self] in
+            Task { @MainActor in
+                self?.currentPreferredID = self?.service.currentPreferredUniqueID
+            }
+        }
+        service.startListening()
+    }
+}

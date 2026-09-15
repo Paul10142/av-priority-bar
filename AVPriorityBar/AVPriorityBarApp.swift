@@ -2,13 +2,18 @@ import SwiftUI
 import CoreAudio
 
 @main
-struct AudioPriorityBarApp: App {
+struct AVPriorityBarApp: App {
+    // Declared first so inherited settings are in place before the managers read them.
+    private let didMigrate = SettingsMigration.runIfNeeded()
+
     @StateObject private var audioManager = AudioManager()
-    
+    @StateObject private var cameraManager = CameraManager()
+
     var body: some Scene {
         MenuBarExtra {
             MenuBarView()
                 .environmentObject(audioManager)
+                .environmentObject(cameraManager)
         } label: {
             Image(systemName: "speaker.wave.2.fill")
         }

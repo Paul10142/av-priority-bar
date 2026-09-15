@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A10000000000000000000001 /* AudioPriorityBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* AudioPriorityBarApp.swift */; };
+		A10000000000000000000001 /* AVPriorityBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* AVPriorityBarApp.swift */; };
 		A10000000000000000000002 /* AudioDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* AudioDevice.swift */; };
 		A10000000000000000000003 /* AudioDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* AudioDeviceService.swift */; };
 		A10000000000000000000004 /* PriorityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* PriorityManager.swift */; };
@@ -17,10 +17,17 @@
 		A10000000000000000000009 /* Headphones.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* Headphones.swift */; };
 		A10000000000000000000010 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* CoreAudio.framework */; };
 		A10000000000000000000020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* Assets.xcassets */; };
+		A10000000000000000000031 /* CameraDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* CameraDevice.swift */; };
+		A10000000000000000000032 /* CameraService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* CameraService.swift */; };
+		A10000000000000000000033 /* CameraPriorityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000033 /* CameraPriorityManager.swift */; };
+		A10000000000000000000034 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000034 /* CameraManager.swift */; };
+		A10000000000000000000035 /* SettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000035 /* SettingsMigration.swift */; };
+		A10000000000000000000036 /* CameraListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000036 /* CameraListView.swift */; };
+		A10000000000000000000011 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* AVFoundation.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A20000000000000000000001 /* AudioPriorityBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPriorityBarApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000001 /* AVPriorityBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AVPriorityBarApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* AudioDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDevice.swift; sourceTree = "<group>"; };
 		A20000000000000000000003 /* AudioDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceService.swift; sourceTree = "<group>"; };
 		A20000000000000000000004 /* PriorityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityManager.swift; sourceTree = "<group>"; };
@@ -31,7 +38,14 @@
 		A20000000000000000000009 /* Headphones.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Headphones.swift; sourceTree = "<group>"; };
 		A20000000000000000000010 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		A20000000000000000000020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A30000000000000000000001 /* AudioPriorityBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioPriorityBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A30000000000000000000001 /* AVPriorityBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AVPriorityBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000031 /* CameraDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraDevice.swift; sourceTree = "<group>"; };
+		A20000000000000000000032 /* CameraService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraService.swift; sourceTree = "<group>"; };
+		A20000000000000000000033 /* CameraPriorityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPriorityManager.swift; sourceTree = "<group>"; };
+		A20000000000000000000034 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		A20000000000000000000035 /* SettingsMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMigration.swift; sourceTree = "<group>"; };
+		A20000000000000000000036 /* CameraListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraListView.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -40,6 +54,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000010 /* CoreAudio.framework in Frameworks */,
+				A10000000000000000000011 /* AVFoundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -49,23 +64,23 @@
 		A50000000000000000000001 /* Root */ = {
 			isa = PBXGroup;
 			children = (
-				A50000000000000000000002 /* AudioPriorityBar */,
+				A50000000000000000000002 /* AVPriorityBar */,
 				A50000000000000000000007 /* Frameworks */,
 				A50000000000000000000006 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A50000000000000000000002 /* AudioPriorityBar */ = {
+		A50000000000000000000002 /* AVPriorityBar */ = {
 			isa = PBXGroup;
 			children = (
-				A20000000000000000000001 /* AudioPriorityBarApp.swift */,
+				A20000000000000000000001 /* AVPriorityBarApp.swift */,
 				A50000000000000000000003 /* Models */,
 				A50000000000000000000004 /* Services */,
 				A50000000000000000000005 /* Views */,
 				A20000000000000000000020 /* Assets.xcassets */,
 				A20000000000000000000007 /* Info.plist */,
 			);
-			path = AudioPriorityBar;
+			path = AVPriorityBar;
 			sourceTree = "<group>";
 		};
 		A50000000000000000000003 /* Models */ = {
@@ -73,6 +88,7 @@
 			children = (
 				A20000000000000000000002 /* AudioDevice.swift */,
 				A20000000000000000000009 /* Headphones.swift */,
+				A20000000000000000000031 /* CameraDevice.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -83,6 +99,10 @@
 				A20000000000000000000003 /* AudioDeviceService.swift */,
 				A20000000000000000000004 /* PriorityManager.swift */,
 				A20000000000000000000008 /* LaunchAtLoginManager.swift */,
+				A20000000000000000000032 /* CameraService.swift */,
+				A20000000000000000000033 /* CameraPriorityManager.swift */,
+				A20000000000000000000034 /* CameraManager.swift */,
+				A20000000000000000000035 /* SettingsMigration.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -92,6 +112,7 @@
 			children = (
 				A20000000000000000000005 /* MenuBarView.swift */,
 				A20000000000000000000006 /* DeviceListView.swift */,
+				A20000000000000000000036 /* CameraListView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -99,7 +120,7 @@
 		A50000000000000000000006 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A30000000000000000000001 /* AudioPriorityBar.app */,
+				A30000000000000000000001 /* AVPriorityBar.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -108,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000010 /* CoreAudio.framework */,
+				A20000000000000000000011 /* AVFoundation.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -126,9 +148,9 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		A60000000000000000000001 /* AudioPriorityBar */ = {
+		A60000000000000000000001 /* AVPriorityBar */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A80000000000000000000001 /* Build configuration list for PBXNativeTarget "AudioPriorityBar" */;
+			buildConfigurationList = A80000000000000000000001 /* Build configuration list for PBXNativeTarget "AVPriorityBar" */;
 			buildPhases = (
 				A70000000000000000000001 /* Sources */,
 				A40000000000000000000001 /* Frameworks */,
@@ -138,9 +160,9 @@
 			);
 			dependencies = (
 			);
-			name = AudioPriorityBar;
-			productName = AudioPriorityBar;
-			productReference = A30000000000000000000001 /* AudioPriorityBar.app */;
+			name = AVPriorityBar;
+			productName = AVPriorityBar;
+			productReference = A30000000000000000000001 /* AVPriorityBar.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -158,7 +180,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A80000000000000000000002 /* Build configuration list for PBXProject "AudioPriorityBar" */;
+			buildConfigurationList = A80000000000000000000002 /* Build configuration list for PBXProject "AVPriorityBar" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -171,7 +193,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A60000000000000000000001 /* AudioPriorityBar */,
+				A60000000000000000000001 /* AVPriorityBar */,
 			);
 		};
 /* End PBXProject section */
@@ -181,9 +203,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10000000000000000000001 /* AudioPriorityBarApp.swift in Sources */,
+				A10000000000000000000001 /* AVPriorityBarApp.swift in Sources */,
 				A10000000000000000000002 /* AudioDevice.swift in Sources */,
 				A10000000000000000000009 /* Headphones.swift in Sources */,
+				A10000000000000000000031 /* CameraDevice.swift in Sources */,
+				A10000000000000000000032 /* CameraService.swift in Sources */,
+				A10000000000000000000033 /* CameraPriorityManager.swift in Sources */,
+				A10000000000000000000034 /* CameraManager.swift in Sources */,
+				A10000000000000000000035 /* SettingsMigration.swift in Sources */,
+				A10000000000000000000036 /* CameraListView.swift in Sources */,
 				A10000000000000000000003 /* AudioDeviceService.swift in Sources */,
 				A10000000000000000000004 /* PriorityManager.swift in Sources */,
 				A10000000000000000000005 /* MenuBarView.swift in Sources */,
@@ -248,7 +276,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -305,7 +333,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
@@ -324,9 +352,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AudioPriorityBar/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Audio Priority Bar";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AVPriorityBar/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "AV Priority Bar";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -335,7 +363,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.audioprioritybar;
+				PRODUCT_BUNDLE_IDENTIFIER = com.paulclancy.AVPriorityBar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -353,9 +381,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = AudioPriorityBar/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Audio Priority Bar";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AVPriorityBar/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "AV Priority Bar";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -364,7 +392,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.audioprioritybar;
+				PRODUCT_BUNDLE_IDENTIFIER = com.paulclancy.AVPriorityBar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -374,7 +402,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A80000000000000000000001 /* Build configuration list for PBXNativeTarget "AudioPriorityBar" */ = {
+		A80000000000000000000001 /* Build configuration list for PBXNativeTarget "AVPriorityBar" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B20000000000000000000001 /* Debug */,
@@ -383,7 +411,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A80000000000000000000002 /* Build configuration list for PBXProject "AudioPriorityBar" */ = {
+		A80000000000000000000002 /* Build configuration list for PBXProject "AVPriorityBar" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B10000000000000000000001 /* Debug */,

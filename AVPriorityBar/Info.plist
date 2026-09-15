@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Audio Priority Bar</string>
+    <string>AV Priority Bar</string>
     <key>CFBundleDisplayName</key>
-    <string>Audio Priority Bar</string>
+    <string>AV Priority Bar</string>
     <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <string>com.paulclancy.AVPriorityBar</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
@@ -15,14 +15,18 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
+    <string>AVPriorityBar</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>
-    <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+    <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.utilities</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>AV Priority Bar lists your cameras and sets which one apps use by default. It never opens a video stream.</string>
 </dict>
 </plist>

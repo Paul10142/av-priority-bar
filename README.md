@@ -1,16 +1,31 @@
-# Audio Priority Bar
+# AV Priority Bar
 
 <p align="center">
-  <img src="icon.png" width="128" height="128" alt="Audio Priority Bar Icon">
+  <img src="icon.png" width="128" height="128" alt="AV Priority Bar Icon">
 </p>
 
-A native macOS menu bar app that automatically manages audio device priorities. Set your preferred order for speakers, headphones, and microphones - the app automatically switches to the highest-priority connected device.
+A personal fork of [tobi/AudioPriorityBar](https://github.com/tobi/AudioPriorityBar) that adds a **Camera** tab alongside the original audio one.
 
-![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue)
-![Swift](https://img.shields.io/badge/Swift-5.9-orange)
+Audio side: set your preferred order for speakers, headphones and microphones, and the app switches to the highest-priority device that's connected. Camera side: the same idea, applied to the system-wide preferred camera.
+
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
+![Swift](https://img.shields.io/badge/Swift-6-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-![Screenshot](screenshot.jpeg)
+## What's different from upstream
+
+- **Camera tab** - priority list for every camera, drag to reorder, auto-switch on connect/disconnect.
+- **Tabbed layout** - Audio and Camera share the panel; the audio UI is otherwise unchanged.
+- **Builds without Xcode** - `./build.sh` compiles with the Command Line Tools and assembles the .app itself.
+- **Own bundle id** (`com.paulclancy.AVPriorityBar`), so it installs alongside the original. Audio settings are imported from the original app on first launch.
+
+## How the camera tab works - and its limits
+
+macOS has no single "default camera" setting the way it has for sound. What it does have, since macOS 14, is a system-wide **preferred camera** (`AVCaptureDevice.userPreferredCamera`). This app writes that value, always pointing it at the highest-priority camera currently connected.
+
+- **Apps that follow it:** anything that asks macOS for the default camera - FaceTime, Photo Booth, and most apps without their own camera picker.
+- **Apps that don't:** anything that remembers its own choice - Zoom, Teams, OBS, Google Meet in a browser. Set the camera once inside those apps and they stay put.
+- **Camera permission is required.** macOS ignores a camera preference written by an app that hasn't been granted camera access. The app never opens a video stream - the permission exists purely so the preference is honoured. Camera *names* are listed with or without it.
 
 ## Features
 
@@ -23,6 +38,14 @@ A native macOS menu bar app that automatically manages audio device priorities. 
 - **Volume control**: Adjust volume with slider or scroll wheel.
 - **Menu bar integration**: Shows current mode icon and volume percentage.
 
+### Camera
+
+- **Priority list**: Drag cameras into the order you want, or click one to move it to the top.
+- **Auto / Manual**: Auto keeps the top-ranked connected camera selected; Manual leaves the choice alone.
+- **Override notice**: If another app changes the active camera, a banner offers to put it back.
+- **Ignore and forget**: Hide virtual cameras (OBS, Elgato) from the list, or forget ones you no longer own.
+- **Sensible first run**: Before you set an order, real hardware ranks above virtual cameras rather than trusting discovery order.
+
 ## Installation
 
 ### Requirements
@@ -30,23 +53,18 @@ A native macOS menu bar app that automatically manages audio device priorities. 
 
 ### Build from Source
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/tobi/AudioPriorityBar.git
-   cd AudioPriorityBar
-   ```
+Xcode is not required - the Command Line Tools are enough:
 
-2. Build using the build script:
-   ```bash
-   ./build.sh
-   ```
+```bash
+./build.sh      # produces dist/AVPriorityBar.app
+./install.sh    # builds, copies to /Applications, relaunches
+```
 
-3. The app will be at `dist/AudioPriorityBar.app`
+`build.sh` compiles every Swift file with `swiftc`, generates the app icon from `icon.png` with `sips`/`iconutil`, assembles the bundle, and ad-hoc signs it. The ad-hoc signature matters: an unsigned bundle gets a new identity on each rebuild, so macOS would re-ask for camera access every time.
 
-Or open `AudioPriorityBar.xcodeproj` in Xcode and build with ⌘R.
+It also works around a Command Line Tools bug where `SwiftBridging` is declared in two modulemaps, which otherwise fails every compile. The workaround is a VFS overlay; nothing in the system directory is touched.
 
-### Download Release
-Check the [Releases](https://github.com/tobi/AudioPriorityBar/releases) page for pre-built binaries.
+`AVPriorityBar.xcodeproj` is kept in sync for anyone who does have Xcode, but it is not the build path this fork is tested with.
 
 ## Usage
 
@@ -89,21 +107,27 @@ Click "Edit" in the footer to:
 ## Project Structure
 
 ```
-AudioPriorityBar/
-├── AudioPriorityBarApp.swift    # App entry, MenuBarExtra, AudioManager
+AVPriorityBar/
+├── AVPriorityBarApp.swift         # App entry, MenuBarExtra, AudioManager
 ├── Models/
-│   └── AudioDevice.swift        # Device model, OutputCategory enum
+│   ├── AudioDevice.swift          # Device model, OutputCategory enum
+│   └── CameraDevice.swift         # Camera model, CameraKind classification
 ├── Services/
-│   ├── AudioDeviceService.swift # CoreAudio wrapper
-│   └── PriorityManager.swift    # Priority persistence
+│   ├── AudioDeviceService.swift   # CoreAudio wrapper
+│   ├── PriorityManager.swift      # Audio priority persistence
+│   ├── CameraService.swift        # AVFoundation discovery + preferred camera
+│   ├── CameraPriorityManager.swift# Camera priority persistence
+│   ├── CameraManager.swift        # Camera state, auto-switching
+│   └── SettingsMigration.swift    # One-time import from the original app
 └── Views/
-    ├── MenuBarView.swift        # Main popover UI
-    └── DeviceListView.swift     # Device list and row components
+    ├── MenuBarView.swift          # Tabs, shared footer, audio tab
+    ├── DeviceListView.swift       # Audio device rows
+    └── CameraListView.swift       # Camera tab and rows
 ```
 
-## Contributing
+## Credit
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+All of the audio functionality is [tobi/AudioPriorityBar](https://github.com/tobi/AudioPriorityBar). This fork adds the camera side and the Xcode-free build.
 
 ## License
 

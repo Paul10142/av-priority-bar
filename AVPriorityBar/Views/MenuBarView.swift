@@ -2,12 +2,163 @@ import SwiftUI
 import CoreAudio
 import AppKit
 
+enum PriorityTab: String, CaseIterable {
+    case audio
+    case camera
+
+    var label: String {
+        switch self {
+        case .audio: return "Audio"
+        case .camera: return "Camera"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .audio: return "speaker.wave.2.fill"
+        case .camera: return "camera.fill"
+        }
+    }
+}
+
 struct MenuBarView: View {
+    @EnvironmentObject var audioManager: AudioManager
+    @EnvironmentObject var cameraManager: CameraManager
+    @AppStorage("selectedTab") private var selectedTabRaw: String = PriorityTab.audio.rawValue
+
+    private var selectedTab: PriorityTab {
+        PriorityTab(rawValue: selectedTabRaw) ?? .audio
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TabSwitcherView(selected: selectedTab) { tab in
+                selectedTabRaw = tab.rawValue
+                if tab == .camera {
+                    // Opening the tab is the moment the permission actually
+                    // matters, so this is where macOS gets asked (once).
+                    cameraManager.requestAccessIfNeeded()
+                    cameraManager.refreshCameras()
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+
+            switch selectedTab {
+            case .audio:
+                AudioTabView()
+            case .camera:
+                CameraTabView()
+            }
+
+            Divider()
+                .padding(.horizontal, 12)
+
+            FooterView(tab: selectedTab)
+        }
+        .frame(width: 340)
+    }
+}
+
+struct TabSwitcherView: View {
+    let selected: PriorityTab
+    let onSelect: (PriorityTab) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(PriorityTab.allCases, id: \.self) { tab in
+                let isSelected = tab == selected
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { onSelect(tab) }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 11))
+                        Text(tab.label)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isSelected ? Color.primary.opacity(0.10) : Color.clear)
+                    )
+                    .foregroundColor(isSelected ? .primary : .secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(3)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.04)))
+    }
+}
+
+struct FooterView: View {
+    @EnvironmentObject var audioManager: AudioManager
+    @EnvironmentObject var cameraManager: CameraManager
+    let tab: PriorityTab
+
+    private var isEditing: Bool {
+        tab == .audio ? audioManager.isEditMode : cameraManager.isEditMode
+    }
+
+    var body: some View {
+        HStack(spacing: 16) {
+            if tab == .audio && !audioManager.isEditMode {
+                HiddenDevicesToggleView()
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+
+            Spacer()
+
+            LaunchAtLoginToggle()
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if tab == .audio {
+                        audioManager.toggleEditMode()
+                    } else {
+                        cameraManager.toggleEditMode()
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.circle")
+                        .font(.system(size: 12))
+                    Text(isEditing ? "Done" : "Edit")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundColor(isEditing ? .accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help(tab == .audio ? "Show every audio device ever connected" : "Show every camera ever connected")
+            .animation(.easeInOut(duration: 0.2), value: isEditing)
+
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary.opacity(0.6))
+            }
+            .buttonStyle(.plain)
+            .help("Quit")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .animation(.easeInOut(duration: 0.2), value: isEditing)
+    }
+}
+
+/// The original audio UI, unchanged apart from losing its own footer to the
+/// shared one below the tabs.
+struct AudioTabView: View {
     @EnvironmentObject var audioManager: AudioManager
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with mode toggle and volume
             VStack(spacing: 14) {
                 ModeToggleView()
                 VolumeSliderView()
@@ -21,7 +172,6 @@ struct MenuBarView: View {
 
             ScrollView {
                 VStack(spacing: 20) {
-                    // Speakers (show in speaker mode or custom mode)
                     if audioManager.currentMode == .speaker || audioManager.isCustomMode {
                         DeviceSectionView(
                             title: "Speakers",
@@ -43,7 +193,6 @@ struct MenuBarView: View {
                         )
                     }
 
-                    // Headphones (show in headphone mode or custom mode)
                     if audioManager.currentMode == .headphone || audioManager.isCustomMode {
                         DeviceSectionView(
                             title: "Headphones",
@@ -65,7 +214,6 @@ struct MenuBarView: View {
                         )
                     }
 
-                    // Microphones (always shown, at the bottom)
                     DeviceSectionView(
                         title: "Microphones",
                         icon: "mic.fill",
@@ -83,56 +231,7 @@ struct MenuBarView: View {
                 .padding(.vertical, 14)
             }
             .frame(maxHeight: 420)
-
-            Divider()
-                .padding(.horizontal, 12)
-
-            // Footer
-            HStack(spacing: 16) {
-                // Hidden devices toggle (only in normal mode)
-                if !audioManager.isEditMode {
-                    HiddenDevicesToggleView()
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                }
-
-                Spacer()
-                
-                // Launch at login toggle
-                LaunchAtLoginToggle()
-
-                // Edit mode toggle
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        audioManager.toggleEditMode()
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: audioManager.isEditMode ? "checkmark.circle.fill" : "pencil.circle")
-                            .font(.system(size: 12))
-                        Text(audioManager.isEditMode ? "Done" : "Edit")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundColor(audioManager.isEditMode ? .accentColor : .secondary)
-                }
-                .buttonStyle(.plain)
-                .animation(.easeInOut(duration: 0.2), value: audioManager.isEditMode)
-
-                // Quit button
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary.opacity(0.6))
-                }
-                .buttonStyle(.plain)
-                .help("Quit")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .animation(.easeInOut(duration: 0.2), value: audioManager.isEditMode)
         }
-        .frame(width: 340)
     }
 }
 
