@@ -211,6 +211,7 @@ struct FooterView: View {
 /// directly under the list it belongs to.
 struct AudioContentView: View {
     @EnvironmentObject var audioManager: AudioManager
+    @ObservedObject private var settings = AppSettings.shared
 
     private var activeSpeaker: AudioDevice? {
         audioManager.speakerDevices.first { $0.id == audioManager.currentOutputId }
@@ -225,47 +226,54 @@ struct AudioContentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                DeviceVolumeSliderView(device: activeSpeaker, fallbackIcon: "speaker.wave.2.fill")
-                DeviceVolumeSliderView(device: activeHeadphone, fallbackIcon: "headphones")
+        VStack(alignment: .leading, spacing: 16) {
+            // Every volume control in one block at the top, each labelled, so
+            // there's no guessing which slider belongs to what.
+            VStack(spacing: 6) {
+                DeviceVolumeSliderView(device: activeHeadphone, label: "Headphones", icon: "headphones")
+                DeviceVolumeSliderView(device: activeSpeaker, label: "Speakers", icon: "speaker.wave.2.fill")
+                DeviceVolumeSliderView(device: activeMicrophone, label: "Mic", icon: "mic.fill")
             }
 
-            DeviceSectionView(
-                title: "Speakers",
-                icon: "speaker.wave.2.fill",
-                devices: audioManager.speakerDevices,
-                currentDeviceId: audioManager.currentOutputId,
-                onMove: audioManager.moveSpeakerDevice,
-                onSelect: { device in
-                    audioManager.setMode(.speaker)
-                    audioManager.setOutputDevice(device)
-                },
-                onHide: { audioManager.hideDevice($0, category: .speaker) },
-                onUnhide: { audioManager.unhideDevice($0, category: .speaker) },
-                category: .speaker,
-                showCategoryPicker: true,
-                isActiveCategory: audioManager.currentMode == .speaker
-            )
+            if !audioManager.headphoneDevices.isEmpty {
+                DeviceSectionView(
+                    title: "Headphones",
+                    icon: "headphones",
+                    devices: audioManager.headphoneDevices,
+                    currentDeviceId: audioManager.currentOutputId,
+                    onMove: audioManager.moveHeadphoneDevice,
+                    onSelect: { device in
+                        audioManager.setMode(.headphone)
+                        audioManager.setOutputDevice(device)
+                    },
+                    onHide: { audioManager.hideDevice($0, category: .headphone) },
+                    onUnhide: { audioManager.unhideDevice($0, category: .headphone) },
+                    category: .headphone,
+                    showCategoryPicker: true,
+                    isActiveCategory: audioManager.currentMode == .headphone
+                )
+            }
 
-            DeviceSectionView(
-                title: "Headphones",
-                icon: "headphones",
-                devices: audioManager.headphoneDevices,
-                currentDeviceId: audioManager.currentOutputId,
-                onMove: audioManager.moveHeadphoneDevice,
-                onSelect: { device in
-                    audioManager.setMode(.headphone)
-                    audioManager.setOutputDevice(device)
-                },
-                onHide: { audioManager.hideDevice($0, category: .headphone) },
-                onUnhide: { audioManager.unhideDevice($0, category: .headphone) },
-                category: .headphone,
-                showCategoryPicker: true,
-                isActiveCategory: audioManager.currentMode == .headphone
-            )
+            if !audioManager.speakerDevices.isEmpty {
+                DeviceSectionView(
+                    title: "Speakers",
+                    icon: "speaker.wave.2.fill",
+                    devices: audioManager.speakerDevices,
+                    currentDeviceId: audioManager.currentOutputId,
+                    onMove: audioManager.moveSpeakerDevice,
+                    onSelect: { device in
+                        audioManager.setMode(.speaker)
+                        audioManager.setOutputDevice(device)
+                    },
+                    onHide: { audioManager.hideDevice($0, category: .speaker) },
+                    onUnhide: { audioManager.unhideDevice($0, category: .speaker) },
+                    category: .speaker,
+                    showCategoryPicker: true,
+                    isActiveCategory: audioManager.currentMode == .speaker
+                )
+            }
 
-            VStack(spacing: 10) {
+            if !audioManager.inputDevices.isEmpty {
                 DeviceSectionView(
                     title: "Microphones",
                     icon: "mic.fill",
@@ -278,19 +286,21 @@ struct AudioContentView: View {
                     category: nil,
                     showCategoryPicker: false
                 )
-                DeviceVolumeSliderView(device: activeMicrophone, fallbackIcon: "mic.fill")
+            }
+
+            if settings.micCheckEnabled {
+                MicCheckView()
             }
         }
     }
 }
 
 /// Volume for one specific device - the one currently in use in that section.
-/// Hidden entirely for devices that expose no volume control, rather than
-/// showing a slider that does nothing.
 struct DeviceVolumeSliderView: View {
     @EnvironmentObject var audioManager: AudioManager
     let device: AudioDevice?
-    let fallbackIcon: String
+    let label: String
+    let icon: String
 
     private var isMuted: Bool {
         guard let device else { return false }
@@ -303,39 +313,53 @@ struct DeviceVolumeSliderView: View {
     }
 
     var body: some View {
-        if let device, audioManager.hasVolumeControl(device) {
-            HStack(spacing: 10) {
+        if let device {
+            HStack(spacing: 8) {
                 Button {
                     audioManager.toggleMute(device)
                 } label: {
-                    Image(systemName: isMuted ? mutedIcon : fallbackIcon)
+                    Image(systemName: isMuted ? mutedIcon : icon)
                         .font(.system(size: 12))
                         .foregroundColor(isMuted ? .red : .accentColor)
-                        .frame(width: 20)
+                        .frame(width: 18)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(isMuted ? "Unmute \(device.name)" : "Mute \(device.name)")
 
-                Slider(
-                    value: Binding(
-                        get: { Double(level) },
-                        set: {
-                        if isMuted { audioManager.toggleMute(device) }
-                        audioManager.setVolume(Float($0), for: device)
-                    }
-                    ),
-                    in: 0...1
-                )
-                .controlSize(.small)
-
-                Text("\(Int(level * 100))%")
-                    .font(.system(size: 11, design: .monospaced))
+                Text(label)
+                    .font(.system(size: 11))
                     .foregroundColor(.secondary)
-                    .frame(width: 36, alignment: .trailing)
+                    .frame(width: 66, alignment: .leading)
+
+                if audioManager.hasVolumeControl(device) {
+                    Slider(
+                        value: Binding(
+                            get: { Double(level) },
+                            set: {
+                                if isMuted { audioManager.toggleMute(device) }
+                                audioManager.setVolume(Float($0), for: device)
+                            }
+                        ),
+                        in: 0...1
+                    )
+                    .controlSize(.small)
+
+                    Text("\(Int(level * 100))%")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .frame(width: 36, alignment: .trailing)
+                } else {
+                    // Most USB microphones and aggregate devices have no volume
+                    // control at all - the app can't invent one.
+                    Text("No volume control")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary.opacity(0.8))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .padding(.leading, 8)
             .onScrollWheel { delta in
+                guard audioManager.hasVolumeControl(device) else { return }
                 audioManager.setVolume(level + Float(delta * 0.02), for: device)
             }
         }
@@ -399,7 +423,7 @@ struct DeviceSectionView: View {
     var isActiveCategory: Bool = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .font(.system(size: 11))
@@ -412,12 +436,7 @@ struct DeviceSectionView: View {
             }
 
             if devices.isEmpty {
-                Text("No devices")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary.opacity(0.7))
-                    .italic()
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                EmptyView()
             } else {
                 DeviceListView(
                     devices: devices,

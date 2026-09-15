@@ -130,8 +130,13 @@ struct CameraPreviewPanel: View {
     @StateObject private var controller = CameraPreviewController()
     @ObservedObject private var settings = AppSettings.shared
 
-    /// The camera actually in use.
+    /// The camera in use: what you last clicked, falling back to whatever macOS
+    /// reports as the system preference.
     private var activeCamera: CameraDevice? {
+        if let id = cameraManager.selectedCameraID,
+           let match = cameraManager.cameras.first(where: { $0.uniqueID == id }) {
+            return match
+        }
         if let id = cameraManager.currentPreferredID,
            let match = cameraManager.cameras.first(where: { $0.uniqueID == id }) {
             return match

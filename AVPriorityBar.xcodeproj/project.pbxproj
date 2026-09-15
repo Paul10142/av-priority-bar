@@ -29,6 +29,8 @@
 		A10000000000000000000039 /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000039 /* HotKeyManager.swift */; };
 		A10000000000000000000040 /* MirrorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000040 /* MirrorWindow.swift */; };
 		A10000000000000000000041 /* SettingsPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000041 /* SettingsPageView.swift */; };
+		A10000000000000000000042 /* MicLevelMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000042 /* MicLevelMonitor.swift */; };
+		A10000000000000000000043 /* MicCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000043 /* MicCheckView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +58,8 @@
 		A20000000000000000000039 /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
 		A20000000000000000000040 /* MirrorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorWindow.swift; sourceTree = "<group>"; };
 		A20000000000000000000041 /* SettingsPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPageView.swift; sourceTree = "<group>"; };
+		A20000000000000000000042 /* MicLevelMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicLevelMonitor.swift; sourceTree = "<group>"; };
+		A20000000000000000000043 /* MicCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicCheckView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +117,7 @@
 				A20000000000000000000033 /* CameraPriorityManager.swift */,
 				A20000000000000000000034 /* CameraManager.swift */,
 				A20000000000000000000035 /* SettingsMigration.swift */,
+				A20000000000000000000042 /* MicLevelMonitor.swift */,
 				A20000000000000000000039 /* HotKeyManager.swift */,
 				A20000000000000000000038 /* AppSettings.swift */,
 			);
@@ -126,6 +131,7 @@
 				A20000000000000000000006 /* DeviceListView.swift */,
 				A20000000000000000000036 /* CameraListView.swift */,
 				A20000000000000000000037 /* CameraPreviewView.swift */,
+				A20000000000000000000043 /* MicCheckView.swift */,
 				A20000000000000000000041 /* SettingsPageView.swift */,
 				A20000000000000000000040 /* MirrorWindow.swift */,
 			);
@@ -227,6 +233,8 @@
 				A10000000000000000000034 /* CameraManager.swift in Sources */,
 				A10000000000000000000035 /* SettingsMigration.swift in Sources */,
 				A10000000000000000000036 /* CameraListView.swift in Sources */,
+				A10000000000000000000043 /* MicCheckView.swift in Sources */,
+				A10000000000000000000042 /* MicLevelMonitor.swift in Sources */,
 				A10000000000000000000041 /* SettingsPageView.swift in Sources */,
 				A10000000000000000000040 /* MirrorWindow.swift in Sources */,
 				A10000000000000000000039 /* HotKeyManager.swift in Sources */,

@@ -20,7 +20,7 @@ struct DeviceListView: View {
     private let rowHeight: CGFloat = 32
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             ForEach(Array(devices.enumerated()), id: \.element.id) { index, device in
                 DraggableDeviceRow(
                     device: device,
@@ -362,7 +362,7 @@ struct DraggableDeviceRow: View {
         }
         .padding(.leading, 8)
         .padding(.trailing, 10)
-        .padding(.vertical, 5)
+        .padding(.vertical, 2)
     }
 }
 

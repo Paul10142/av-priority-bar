@@ -17,6 +17,10 @@ final class CameraManager: ObservableObject {
     /// Which camera the preview is showing because the pointer is over its row.
     /// Hovering is look-only - it never changes priority or the active camera.
     @Published var hoveredCameraID: String?
+    /// The camera you last clicked. The preview follows this, because macOS
+    /// won't accept every camera as the system preference (Desk View, for one)
+    /// and the preview should still show what you asked for.
+    @Published var selectedCameraID: String?
     @Published var isEditMode: Bool = false
 
     private let service = CameraService()
@@ -125,8 +129,10 @@ final class CameraManager: ObservableObject {
     /// dragging is for.
     func selectCamera(_ camera: CameraDevice) {
         guard isConnected(camera) else { return }
+        selectedCameraID = camera.uniqueID
         service.setPreferred(uniqueID: camera.uniqueID)
         refreshCameras()
+        MirrorWindowController.shared.showCamera(uniqueID: camera.uniqueID, name: camera.name)
     }
 
     func moveCamera(from source: IndexSet, to destination: Int) {
@@ -166,6 +172,7 @@ final class CameraManager: ObservableObject {
 
     private func applyHighestPriorityCamera() {
         guard let top = topPriorityCamera else { return }
+        selectedCameraID = top.uniqueID
         guard top.uniqueID != service.currentPreferredUniqueID else {
             recordState(applied: top.name)
             return

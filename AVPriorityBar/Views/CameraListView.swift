@@ -150,7 +150,10 @@ struct DraggableCameraRow: View {
     @State private var lastReportedTarget: Int? = nil
 
     private var isDisconnected: Bool { !cameraManager.isConnected(camera) }
-    private var isActive: Bool { camera.uniqueID == cameraManager.currentPreferredID && !isDisconnected }
+    private var isActive: Bool {
+        let active = cameraManager.selectedCameraID ?? cameraManager.currentPreferredID
+        return camera.uniqueID == active && !isDisconnected
+    }
     private var isIgnored: Bool { cameraManager.isIgnored(camera) }
 
     private func calculateTarget(offset: CGFloat) -> Int? {

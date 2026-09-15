@@ -9,7 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             MirrorWindowController.shared.configure {
                 let manager = CameraManager.shared
-                guard let id = manager.currentPreferredID ?? manager.topPriorityCamera?.uniqueID else {
+                let preferred = manager.selectedCameraID ?? manager.currentPreferredID
+                guard let id = preferred ?? manager.topPriorityCamera?.uniqueID else {
                     return nil
                 }
                 let name = manager.cameras.first { $0.uniqueID == id }?.name ?? "Camera"
@@ -19,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 MirrorWindowController.shared.toggle()
             }
             HotKeyManager.shared.registerStoredHotKey()
+            NotchClickController.shared.apply(enabled: AppSettings.shared.notchClickEnabled)
         }
     }
 }
