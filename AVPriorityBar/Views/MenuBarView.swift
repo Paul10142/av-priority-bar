@@ -10,13 +10,6 @@ enum PanelMetrics {
     static let maxContentHeight: CGFloat = 620
 }
 
-private struct ContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
 enum PanelTab: String, CaseIterable {
     case audio
     case camera
@@ -47,13 +40,6 @@ struct MenuBarView: View {
     @EnvironmentObject var cameraManager: CameraManager
     @AppStorage("selectedTab") private var selectedTabRaw: String = PanelTab.audio.rawValue
     @ObservedObject private var settings = AppSettings.shared
-    @State private var contentHeight: CGFloat = PanelMetrics.minContentHeight
-
-    /// The scroll area gets an explicit height so the window resizes with the
-    /// tab's content instead of keeping whatever height it opened at.
-    private var scrollHeight: CGFloat {
-        min(max(contentHeight, PanelMetrics.minContentHeight), PanelMetrics.maxContentHeight)
-    }
 
     private var selectedTab: PanelTab {
         PanelTab(rawValue: selectedTabRaw) ?? .audio
@@ -63,7 +49,6 @@ struct MenuBarView: View {
         VStack(spacing: 0) {
             TabSwitcherView(selected: selectedTab) { tab in
                 selectedTabRaw = tab.rawValue
-                contentHeight = PanelMetrics.minContentHeight
                 if tab == .camera {
                     cameraManager.requestAccessIfNeeded()
                     cameraManager.refreshCameras()
@@ -79,28 +64,16 @@ struct MenuBarView: View {
             Divider()
                 .padding(.horizontal, 12)
 
-            ScrollView {
-                Group {
-                    switch selectedTab {
-                    case .camera: CameraContentView()
-                    case .settings: SettingsPageView()
-                    case .audio: AudioContentView()
-                    }
+            Group {
+                switch selectedTab {
+                case .camera: CameraContentView()
+                case .settings: SettingsPageView()
+                case .audio: AudioContentView()
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 14)
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
-                    }
-                )
             }
-            .frame(height: scrollHeight)
-            .onPreferenceChange(ContentHeightKey.self) { height in
-                guard height > 0 else { return }
-                contentHeight = height
-            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 14)
 
             Divider()
                 .padding(.horizontal, 12)
@@ -187,6 +160,7 @@ struct FooterView: View {
             }
 
             FooterButton(icon: "power", title: "Quit", tint: .secondary) {
+                AppDelegate.quitRequestedByUser = true
                 NSApplication.shared.terminate(nil)
             }
             .help("Quit AV Priority Bar")

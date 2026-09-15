@@ -10,9 +10,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    /// macOS asks a menu bar app to quit when its item is removed from the menu
+    /// bar - and when Control Center refuses to place the item at all, that
+    /// request arrives moments after launch, so the app dies silently with
+    /// nothing in the logs. Quitting is the user's decision, not the menu bar's:
+    /// an unrequested terminate in the first seconds is declined, which keeps
+    /// the app alive and its keyboard shortcut working even with no icon.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if AppDelegate.quitRequestedByUser { return .terminateNow }
+        if Date().timeIntervalSince(launchedAt) < 15 { return .terminateCancel }
+        return .terminateNow
+    }
+
+    static var quitRequestedByUser = false
+    private let launchedAt = Date()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // A menu bar app owns no windows, and macOS treats a windowless app as
+        // disposable: under memory pressure it automatically terminates it,
+        // taking the menu bar icon with it. Both terminations have to be
+        // declined explicitly, or the app quietly disappears minutes after
+        // launch with nothing in the crash logs.
+        ProcessInfo.processInfo.disableAutomaticTermination("Menu bar app with no windows")
+        ProcessInfo.processInfo.disableSuddenTermination()
+
+        NSApp.setActivationPolicy(.accessory)
+
         Task { @MainActor in
             SettingsMigration.runIfNeeded()
+            PanelController.shared.install()
 
             MirrorWindowController.shared.configure {
                 let manager = CameraManager.shared
@@ -30,55 +56,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// The menu bar item is SwiftUI's. A hand-rolled NSStatusItem is accepted by
-/// AppKit and then never drawn on this machine - no window number, an
-/// off-screen frame - while MenuBarExtra's own item works, so the icon stays
-/// with SwiftUI and the rest of the UI stays ours.
+/// AppKit owns the menu bar item and the panel. SwiftUI's MenuBarExtra quits
+/// the whole app when macOS declines to place its item, which fails silently and
+/// can't be recovered from inside the app.
 @main
-struct AVPriorityBarApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
-    @StateObject private var audioManager = AudioManager.shared
-    @StateObject private var cameraManager = CameraManager.shared
-
-    var body: some Scene {
-        MenuBarExtra {
-            MenuBarView()
-                .environmentObject(audioManager)
-                .environmentObject(cameraManager)
-        } label: {
-            MenuBarLabel(
-                volume: audioManager.volume,
-                isOutputMuted: audioManager.isActiveOutputMuted,
-                isInputMuted: audioManager.isActiveInputMuted,
-                mode: audioManager.currentMode
-            )
+enum AVPriorityBarMain {
+    static func main() {
+        // A brand-new status item is dropped at the far left of the menu bar -
+        // exactly where menu bar managers like Ice keep their hidden section, so
+        // the icon exists and nobody can see it. A mid-bar position puts it in
+        // plain sight. (Cadence solves it the same way.)
+        let positionKey = "NSStatusItem Preferred Position Item-0"
+        if UserDefaults.standard.object(forKey: positionKey) == nil {
+            UserDefaults.standard.set(460, forKey: positionKey)
         }
-        .menuBarExtraStyle(.window)
-    }
-}
+        // This app is nothing but its menu bar icon, so a stored "removed from
+        // the menu bar" flag would leave it running with no way to reach it.
+        UserDefaults.standard.set(true, forKey: "NSStatusItem VisibleCC Item-0")
 
-/// One glyph, always the same width, so the rest of the menu bar never moves.
-/// A muted microphone outranks muted speakers: on a call it is the one that
-/// matters.
-struct MenuBarLabel: View {
-    let volume: Float
-    let isOutputMuted: Bool
-    let isInputMuted: Bool
-    let mode: OutputCategory
-
-    private var symbol: String {
-        if isInputMuted { return "mic.slash.fill" }
-        if isOutputMuted { return "speaker.slash.fill" }
-        if mode == .headphone { return "headphones" }
-        return "speaker.wave.3.fill"
-    }
-
-    var body: some View {
-        if symbol == "speaker.wave.3.fill" {
-            Image(systemName: symbol, variableValue: Double(volume))
-        } else {
-            Image(systemName: symbol)
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        withExtendedLifetime(delegate) {
+            app.run()
         }
     }
 }
