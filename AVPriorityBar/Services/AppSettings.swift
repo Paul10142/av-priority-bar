@@ -38,20 +38,6 @@ enum MirrorWindowPosition: String, CaseIterable, Identifiable {
     }
 }
 
-enum PanelPosition: String, CaseIterable, Identifiable {
-    case underIcon
-    case topRight
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .underIcon: return "Under the menu bar icon"
-        case .topRight: return "Top right of the screen"
-        }
-    }
-}
-
 /// Everything that isn't a device priority.
 @MainActor
 final class AppSettings: ObservableObject {
@@ -97,17 +83,8 @@ final class AppSettings: ObservableObject {
             NotchClickController.shared.apply(enabled: notchClickEnabled)
         }
     }
-    @Published var panelPosition: PanelPosition {
-        didSet {
-            defaults.set(panelPosition.rawValue, forKey: "panelPosition")
-            PanelController.shared.applySettings()
-        }
-    }
     @Published var panelWidth: Double {
-        didSet {
-            defaults.set(panelWidth, forKey: "panelWidth")
-            PanelController.shared.applySettings()
-        }
+        didSet { defaults.set(panelWidth, forKey: "panelWidth") }
     }
     @Published var micCheckEnabled: Bool { didSet { defaults.set(micCheckEnabled, forKey: "micCheckEnabled") } }
     /// Opening the Camera tab pops the floating window as well.
@@ -124,7 +101,6 @@ final class AppSettings: ObservableObject {
         closeDelaySeconds = defaults.object(forKey: "mirrorCloseDelay") as? Double ?? 5
         windowPosition = MirrorWindowPosition(rawValue: defaults.string(forKey: "mirrorWindowPosition") ?? "") ?? .remember
         notchClickEnabled = defaults.object(forKey: "notchClickEnabled") as? Bool ?? false
-        panelPosition = PanelPosition(rawValue: defaults.string(forKey: "panelPosition") ?? "") ?? .underIcon
         panelWidth = defaults.object(forKey: "panelWidth") as? Double ?? 340
         micCheckEnabled = defaults.object(forKey: "micCheckEnabled") as? Bool ?? true
         openWindowWithCameraTab = defaults.object(forKey: "openWindowWithCameraTab") as? Bool ?? true

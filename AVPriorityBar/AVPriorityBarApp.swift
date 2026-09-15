@@ -4,10 +4,15 @@ import CoreAudio
 
 /// Wires up everything that has to exist before any menu is opened.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// A menu bar app has no windows by design. Without this, the app quits the
+    /// moment it notices that - taking the menu bar icon with it.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
             SettingsMigration.runIfNeeded()
-            PanelController.shared.install()
 
             MirrorWindowController.shared.configure {
                 let manager = CameraManager.shared
@@ -25,30 +30,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// The menu bar item and its panel are run from AppKit (see PanelController),
-/// so this scene exists only to give SwiftUI an app to start.
+/// The menu bar item is SwiftUI's. A hand-rolled NSStatusItem is accepted by
+/// AppKit and then never drawn on this machine - no window number, an
+/// off-screen frame - while MenuBarExtra's own item works, so the icon stays
+/// with SwiftUI and the rest of the UI stays ours.
 @main
 struct AVPriorityBarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    @StateObject private var audioManager = AudioManager.shared
+    @StateObject private var cameraManager = CameraManager.shared
+
     var body: some Scene {
-        Settings {
-            EmptyView()
+        MenuBarExtra {
+            MenuBarView()
+                .environmentObject(audioManager)
+                .environmentObject(cameraManager)
+        } label: {
+            MenuBarLabel(
+                volume: audioManager.volume,
+                isOutputMuted: audioManager.isActiveOutputMuted,
+                isInputMuted: audioManager.isActiveInputMuted,
+                mode: audioManager.currentMode
+            )
         }
+        .menuBarExtraStyle(.window)
     }
 }
 
+/// One glyph, always the same width, so the rest of the menu bar never moves.
+/// A muted microphone outranks muted speakers: on a call it is the one that
+/// matters.
 struct MenuBarLabel: View {
     let volume: Float
     let isOutputMuted: Bool
     let isInputMuted: Bool
     let mode: OutputCategory
 
-    /// A single symbol, so the item is always exactly one glyph wide and never
-    /// shifts the rest of the menu bar. The state with the most to say wins.
     private var symbol: String {
-        if isOutputMuted { return "speaker.slash.fill" }
         if isInputMuted { return "mic.slash.fill" }
+        if isOutputMuted { return "speaker.slash.fill" }
         if mode == .headphone { return "headphones" }
         return "speaker.wave.3.fill"
     }
@@ -58,32 +79,6 @@ struct MenuBarLabel: View {
             Image(systemName: symbol, variableValue: Double(volume))
         } else {
             Image(systemName: symbol)
-        }
-    }
-}
-
-struct VolumeMeterView: View {
-    let volume: Float
-    let isMuted: Bool
-    private let barCount = 4
-    private let barSpacing: CGFloat = 1
-
-    var body: some View {
-        Canvas { context, size in
-            let barWidth = (size.width - CGFloat(barCount - 1) * barSpacing) / CGFloat(barCount)
-            let filledBars = isMuted ? 0 : Int(ceil(Double(volume) * Double(barCount)))
-            for i in 0..<barCount {
-                let x = CGFloat(i) * (barWidth + barSpacing)
-                let barHeight = size.height * CGFloat(i + 1) / CGFloat(barCount)
-                let y = size.height - barHeight
-                let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
-                let path = Path(roundedRect: rect, cornerRadius: 1)
-                if i < filledBars {
-                    context.fill(path, with: .color(isMuted ? .red : .primary))
-                } else {
-                    context.fill(path, with: .color(.primary.opacity(0.25)))
-                }
-            }
         }
     }
 }

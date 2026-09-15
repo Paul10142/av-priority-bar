@@ -5,8 +5,16 @@ import AppKit
 /// Height the panel gives its scrolling middle. The window is sized to fit its
 /// content, so this has to be measured and clamped rather than left to grow.
 enum PanelMetrics {
+    static let minContentHeight: CGFloat = 120
     /// The panel grows with its content and only scrolls past this.
     static let maxContentHeight: CGFloat = 620
+}
+
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }
 
 enum PanelTab: String, CaseIterable {
@@ -38,6 +46,14 @@ struct MenuBarView: View {
     @EnvironmentObject var audioManager: AudioManager
     @EnvironmentObject var cameraManager: CameraManager
     @AppStorage("selectedTab") private var selectedTabRaw: String = PanelTab.audio.rawValue
+    @ObservedObject private var settings = AppSettings.shared
+    @State private var contentHeight: CGFloat = PanelMetrics.minContentHeight
+
+    /// The scroll area gets an explicit height so the window resizes with the
+    /// tab's content instead of keeping whatever height it opened at.
+    private var scrollHeight: CGFloat {
+        min(max(contentHeight, PanelMetrics.minContentHeight), PanelMetrics.maxContentHeight)
+    }
 
     private var selectedTab: PanelTab {
         PanelTab(rawValue: selectedTabRaw) ?? .audio
@@ -47,6 +63,7 @@ struct MenuBarView: View {
         VStack(spacing: 0) {
             TabSwitcherView(selected: selectedTab) { tab in
                 selectedTabRaw = tab.rawValue
+                contentHeight = PanelMetrics.minContentHeight
                 if tab == .camera {
                     cameraManager.requestAccessIfNeeded()
                     cameraManager.refreshCameras()
@@ -62,23 +79,35 @@ struct MenuBarView: View {
             Divider()
                 .padding(.horizontal, 12)
 
-            Group {
-                switch selectedTab {
-                case .camera: CameraContentView()
-                case .settings: SettingsPageView()
-                case .audio: AudioContentView()
+            ScrollView {
+                Group {
+                    switch selectedTab {
+                    case .camera: CameraContentView()
+                    case .settings: SettingsPageView()
+                    case .audio: AudioContentView()
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 14)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                    }
+                )
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, 14)
+            .frame(height: scrollHeight)
+            .onPreferenceChange(ContentHeightKey.self) { height in
+                guard height > 0 else { return }
+                contentHeight = height
+            }
 
             Divider()
                 .padding(.horizontal, 12)
 
             FooterView(tab: selectedTab)
         }
-        .frame(width: CGFloat(AppSettings.shared.panelWidth))
+        .frame(width: CGFloat(settings.panelWidth))
         .onAppear {
             MirrorWindowController.shared.lastMenuBarPoint = NSEvent.mouseLocation
         }

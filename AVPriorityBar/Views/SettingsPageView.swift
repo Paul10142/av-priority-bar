@@ -10,15 +10,6 @@ struct SettingsPageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             group("This menu") {
-                SettingsRow(label: "Opens at") {
-                    Picker("", selection: $settings.panelPosition) {
-                        ForEach(PanelPosition.allCases) { position in
-                            Text(position.label).tag(position)
-                        }
-                    }
-                    .labelsHidden()
-                    .controlSize(.small)
-                }
                 SettingsRow(label: "Width") {
                     HStack(spacing: 8) {
                         Slider(value: $settings.panelWidth, in: 300...560, step: 10)
