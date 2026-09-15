@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#172554">
+<title>AV Priority Bar — audio and camera priority for macOS</title>
+<meta name="description" content="Rank your speakers, headphones, microphones and cameras once. Your Mac picks the best one that is plugged in, every time. Free and open source.">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #172554;        /* blue-950 — brand anchor, primary CTA */
+    --navy-hover: #1E3A8A;  /* blue-900 */
+    --primary: #2563EB;     /* blue-600 — links, focus ring */
+    --tint: #EFF6FF;        /* blue-50 */
+    --tint-border: #BFDBFE; /* blue-200 */
+    --slate-900: #0F172A;   /* gradient start only */
+    --gray-900: #111827;
+    --gray-800: #1F2937;
+    --gray-600: #4B5563;
+    --gray-200: #E5E7EB;
+    --gray-50: #F9FAFB;
+    --foreground: #020817;
+    --amber: #D97706;
+    --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--white); color: var(--foreground);
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16px; line-height: 1.65; -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+  .prose { max-width: 800px; margin: 0 auto; }
+  section { padding: 48px 0; }
+  a { color: var(--primary); }
+  a:focus-visible, .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+
+  /* Hero */
+  .hero { padding: 56px 0 40px; text-align: center; }
+  .hero img { width: 96px; height: 96px; }
+  h1 {
+    font-size: 2.5rem; font-weight: 700; letter-spacing: -0.02em; margin: 20px 0 12px;
+    background: linear-gradient(to right, var(--slate-900), var(--primary));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lead { font-size: 1.125rem; color: var(--gray-800); max-width: 34rem; margin: 0 auto 28px; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 48px; padding: 12px 26px; border-radius: 6px;
+    font-weight: 700; font-size: 1rem; text-decoration: none;
+    transition: all 200ms;
+  }
+  .btn-primary {
+    background: var(--navy); color: var(--white);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+  .btn-primary:hover { background: var(--navy-hover); transform: scale(1.05); }
+  .btn-secondary {
+    background: var(--white); color: var(--navy);
+    border: 1px solid var(--navy); font-weight: 600;
+  }
+  .btn-secondary:hover { background: var(--gray-50); transform: scale(1.05); }
+  .meta { font-size: 0.875rem; color: var(--gray-600); margin-top: 16px; }
+
+  h2 { font-size: 1.875rem; font-weight: 700; color: var(--gray-900); margin: 0 0 24px; letter-spacing: -0.01em; }
+  h3 { font-size: 1.25rem; font-weight: 600; color: var(--gray-900); margin: 0 0 6px; }
+  p { margin: 0 0 16px; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .card {
+    background: var(--tint); border: 1px solid var(--tint-border);
+    border-radius: 16px; padding: 24px;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.06), 0 4px 6px -4px rgb(0 0 0 / 0.06);
+  }
+  .card p { color: var(--gray-800); margin: 0; }
+
+  .panel {
+    background: var(--white); border: 1px solid var(--gray-200);
+    border-radius: 16px; padding: 24px;
+  }
+  .panel-navy {
+    background: var(--navy); color: var(--white);
+    border: 1px solid var(--navy); border-radius: 16px; padding: 28px;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15), 0 4px 6px -4px rgb(0 0 0 / 0.15);
+  }
+  .panel-navy h2, .panel-navy h3 { color: var(--white); }
+  .panel-navy p { color: #DBEAFE; }
+  .panel-navy a { color: var(--white); text-decoration: underline; }
+
+  ol, ul { padding-left: 22px; margin: 0 0 16px; }
+  li { margin-bottom: 10px; }
+
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre {
+    background: var(--slate-900); color: #E2E8F0; border-radius: 6px;
+    padding: 14px 16px; overflow-x: auto; font-size: 0.875rem; margin: 0 0 16px;
+  }
+  .flag {
+    display: inline-block; background: var(--amber); color: var(--white);
+    font-size: 0.75rem; font-weight: 600; border-radius: 9999px;
+    padding: 3px 12px; margin-bottom: 12px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--gray-200); }
+  th { color: var(--gray-900); font-weight: 600; }
+  td { color: var(--gray-800); }
+  .table-wrap { overflow-x: auto; }
+
+  footer {
+    border-top: 1px solid var(--gray-200); padding: 32px 0 56px;
+    text-align: center; color: var(--gray-600); font-size: 0.875rem;
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="container">
+    <img src="icon.png" alt="AV Priority Bar app icon">
+    <h1>AV Priority Bar</h1>
+    <p class="lead">
+      Rank your speakers, headphones, microphones and cameras once. Your Mac
+      then picks the best one that's plugged in, every time, on its own.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/Paul10142/av-priority-bar#install">Build it yourself</a>
+      <a class="btn btn-secondary" href="https://github.com/Paul10142/av-priority-bar">Read the source code</a>
+    </div>
+    <p class="meta">Free and open source · Apple Silicon · macOS 14 or later</p>
+  </div>
+</header>
+
+<section>
+  <div class="container prose">
+    <h2>What it does</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Audio priority</h3>
+        <p>
+          Speakers, headphones and microphones each get a list. Drag them into
+          the order you want. When something connects or disconnects, the
+          highest-ranked device that's actually available becomes the default.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Camera priority</h3>
+        <p>
+          The same idea for cameras, using the system-wide preferred camera
+          macOS has exposed since Sonoma. Plug in a webcam and it takes over;
+          unplug it and you're back to the built-in one.
+        </p>
+      </div>
+      <div class="card">
+        <h3>A floating camera window</h3>
+        <p>
+          Resizable, movable, mirrored, always on top if you want it. Open it
+          with a keyboard shortcut from anywhere, from the menu, or by clicking
+          the notch.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Volume, mute and a mic check</h3>
+        <p>
+          A slider and a mute button for each active device, plus a live level
+          meter so "can you hear me?" has an answer before the call starts.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container prose">
+    <div class="panel-navy">
+      <span class="flag">Worth knowing</span>
+      <h2>Which apps follow the camera setting</h2>
+      <p>
+        macOS has no single "default camera" switch the way it has for sound.
+        What it has is one system-wide preferred camera, and this app sets it.
+      </p>
+      <p>
+        Apps that ask macOS for the default follow it — FaceTime, Photo Booth,
+        and most apps without their own camera picker. Apps that remember their
+        own choice ignore it: Zoom, Teams, OBS, Google Meet in a browser. No app
+        can make them do otherwise. Set the camera once inside those and they
+        stay put.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container prose">
+    <h2>Installing</h2>
+    <p>
+      There's no signed release — you build it yourself, which takes about
+      thirty seconds and leaves no security warning to click past.
+    </p>
+<pre>git clone https://github.com/Paul10142/av-priority-bar.git
+cd av-priority-bar
+./install.sh</pre>
+    <p>
+      That compiles the app, puts it in your Applications folder and launches
+      it. A speaker icon appears in your menu bar; there's no dock icon and no
+      window, which is the point.
+    </p>
+    <p>
+      You need the Xcode Command Line Tools
+      (<code>xcode-select --install</code>). Full Xcode is not required.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="container prose">
+    <h2>Permissions</h2>
+    <div class="table-wrap">
+      <table>
+        <tr><th>Permission</th><th>Why</th></tr>
+        <tr>
+          <td>Camera</td>
+          <td>
+            Required for camera switching to work at all — macOS ignores a
+            camera preference from an app it hasn't granted access. The app
+            opens a video stream in one place only, the live preview, and the
+            green camera light tracks that window honestly.
+          </td>
+        </tr>
+        <tr>
+          <td>Microphone</td>
+          <td>The mic check meter, and nothing else. Nothing is recorded.</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="container prose">
+    <h2>Where it came from</h2>
+    <p>
+      <a href="https://github.com/tobi/AudioPriorityBar">Audio Priority Bar</a>
+      by <a href="https://github.com/tobi">tobi</a> is the original, and all of
+      the audio side is its work. This is a fork that adds cameras, a floating
+      mirror window, and a build that doesn't need Xcode.
+    </p>
+    <p>MIT licensed, like the original.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <a href="https://github.com/Paul10142/av-priority-bar">github.com/Paul10142/av-priority-bar</a>
+  </div>
+</footer>
+
+</body>
+</html>
