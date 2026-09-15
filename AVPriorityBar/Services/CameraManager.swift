@@ -162,9 +162,30 @@ final class CameraManager: ObservableObject {
 
     private func applyHighestPriorityCamera() {
         guard let top = topPriorityCamera else { return }
-        guard top.uniqueID != service.currentPreferredUniqueID else { return }
+        guard top.uniqueID != service.currentPreferredUniqueID else {
+            recordState(applied: top.name)
+            return
+        }
         service.setPreferred(uniqueID: top.uniqueID)
         currentPreferredID = service.currentPreferredUniqueID
+        recordState(applied: top.name)
+    }
+
+    /// Records what the app believes it has set, so the camera side can be
+    /// checked from outside the app - the system preference itself is only
+    /// readable by a process that already has camera access.
+    private func recordState(applied: String) {
+        let defaults = UserDefaults.standard
+        defaults.set(applied, forKey: "lastAppliedCamera")
+        defaults.set(currentPreferredID ?? "none", forKey: "lastSystemPreferredCameraID")
+        defaults.set(Date(), forKey: "lastAppliedCameraAt")
+        let state: String
+        switch authState {
+        case .authorized: state = "authorized"
+        case .denied: state = "denied"
+        case .notDetermined: state = "notDetermined"
+        }
+        defaults.set(state, forKey: "cameraAuthState")
     }
 
     private func setupListeners() {
