@@ -101,12 +101,28 @@ struct CameraPreviewPanel: View {
     @EnvironmentObject var cameraManager: CameraManager
     @StateObject private var controller = CameraPreviewController()
 
+    /// The camera actually in use.
     private var activeCamera: CameraDevice? {
         if let id = cameraManager.currentPreferredID,
            let match = cameraManager.cameras.first(where: { $0.uniqueID == id }) {
             return match
         }
         return cameraManager.topPriorityCamera
+    }
+
+    /// What the preview shows: whichever row the pointer is over, otherwise the
+    /// active camera. Hovering changes nothing but this picture.
+    private var previewCamera: CameraDevice? {
+        if let hovered = cameraManager.hoveredCameraID,
+           let match = cameraManager.cameras.first(where: { $0.uniqueID == hovered }) {
+            return match
+        }
+        return activeCamera
+    }
+
+    private var isPeeking: Bool {
+        guard let previewCamera, let activeCamera else { return false }
+        return previewCamera.uniqueID != activeCamera.uniqueID
     }
 
     var body: some View {
@@ -133,7 +149,7 @@ struct CameraPreviewPanel: View {
             .frame(height: 150)
 
             HStack(spacing: 6) {
-                if let camera = activeCamera {
+                if let camera = previewCamera {
                     Image(systemName: camera.kind.icon)
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
@@ -147,7 +163,12 @@ struct CameraPreviewPanel: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                if controller.session != nil {
+                if isPeeking {
+                    Text("PREVIEW")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.secondary)
+                        .tracking(0.5)
+                } else if controller.session != nil {
                     HStack(spacing: 4) {
                         Circle().fill(Color.green).frame(width: 6, height: 6)
                         Text("Live")
@@ -157,9 +178,9 @@ struct CameraPreviewPanel: View {
                 }
             }
         }
-        .onAppear { controller.start(uniqueID: activeCamera?.uniqueID) }
+        .onAppear { controller.start(uniqueID: previewCamera?.uniqueID) }
         .onDisappear { controller.stop() }
-        .onChange(of: activeCamera?.uniqueID) { _, newValue in
+        .onChange(of: previewCamera?.uniqueID) { _, newValue in
             controller.start(uniqueID: newValue)
         }
     }

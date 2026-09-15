@@ -47,6 +47,19 @@ enum CameraKind: String, Codable {
         }
     }
 
+    /// Longer description, shown on hover - "Desk View" in particular means
+    /// nothing until someone explains it.
+    var explanation: String {
+        switch self {
+        case .builtIn: return "Built-in camera"
+        case .external: return "External camera"
+        case .continuity: return "Continuity Camera - your iPhone used as a webcam"
+        case .deskView: return "Desk View - a second, top-down view of your desk, cropped out of the wide camera"
+        case .virtual: return "Virtual camera - a software feed from another app, not real hardware"
+        case .unknown: return "Camera"
+        }
+    }
+
     static func classify(_ device: AVCaptureDevice) -> CameraKind {
         switch device.deviceType {
         case .builtInWideAngleCamera:

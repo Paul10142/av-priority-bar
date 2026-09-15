@@ -14,8 +14,9 @@ Audio side: set your preferred order for speakers, headphones and microphones, a
 
 ## What's different from upstream
 
-- **Cameras** - a camera button sits in the existing mode row, next to the hand-raised manual button. Priority list, drag to reorder, auto-switch on connect/disconnect, and a live preview of the active camera.
-- **One manual switch** - the hand-raised button stops auto-switching for cameras as well as sound.
+- **Two tabs** - Audio and Camera. The Audio tab shows speakers, headphones and microphones together, each list with its own volume slider underneath.
+- **Cameras** - priority list, drag to reorder, auto-switch on connect/disconnect, and a live preview. Hovering a camera previews it without changing anything.
+- **No manual mode** - clicking a device uses it, dragging reorders it, and auto-switching always follows the order. The original app's hand-raised mode is gone.
 - **Menu bar icon reflects state** - a slashed speaker when output is muted, a flashing slashed mic when input is, volume level in the waves otherwise.
 - **Builds without Xcode** - `./build.sh` compiles with the Command Line Tools and assembles the .app itself.
 - **Own bundle id** (`com.paulclancy.AVPriorityBar`), so it installs alongside the original. Audio settings are imported from the original app on first launch.
@@ -32,7 +33,8 @@ macOS has no single "default camera" setting the way it has for sound. What it d
 
 - **Priority-based auto-switching**: Devices are ranked by priority. When a higher-priority device connects, it automatically becomes active.
 - **Separate speaker/headphone modes**: Output devices are categorized as either speakers or headphones, each with their own priority list.
-- **Manual override**: Enable "Custom" mode (hand icon) to disable auto-switching and select devices freely.
+- **Click to use, drag to reorder**: Clicking a device switches to it without changing its rank; only dragging changes priority.
+- **Per-section volume**: Speakers, headphones and microphones each get their own slider and mute button, driving that specific device. Devices with no volume control show no slider.
 - **Device memory**: Remembers all devices you've ever connected, even when disconnected. Edit mode shows disconnected devices with "last seen" timestamps.
 - **Per-category ignore**: Hide devices from specific categories without affecting others.
 - **Drag-to-reorder**: Reorder devices by dragging or using up/down arrows.
@@ -43,7 +45,7 @@ macOS has no single "default camera" setting the way it has for sound. What it d
 
 - **Priority list**: Drag cameras into the order you want, or click one to move it to the top.
 - **Live preview**: A thumbnail of the active camera. This is the only time the app opens a video stream, and the only time the green camera light comes on - it runs while the camera view is open and stops the moment you leave it.
-- **Manual mode**: The shared hand-raised button stops camera auto-switching too.
+- **Hover to preview**: Pointing at a camera shows it in the preview without selecting it or moving it up the list.
 - **Override notice**: If another app changes the active camera, a banner offers to put it back.
 - **Ignore and forget**: Hide virtual cameras (OBS, Elgato) from the list, or forget ones you no longer own.
 - **Sensible first run**: Before you set an order, real hardware ranks above virtual cameras rather than trusting discovery order.
@@ -72,15 +74,14 @@ It also works around a Command Line Tools bug where `SwiftBridging` is declared 
 
 ### Modes
 
-| Mode | Icon | Behavior |
-|------|------|----------|
-| **Speakers** | 🔊 | Shows speaker devices, auto-switches to highest priority |
-| **Headphones** | 🎧 | Shows headphone devices, auto-switches to highest priority |
-| **Custom** | ✋ | Shows all devices, no auto-switching |
+| Tab | Shows |
+|-----|-------|
+| **Audio** | Speakers, headphones and microphones, each with its own priority list and volume slider |
+| **Camera** | Live preview and the camera priority list |
 
 ### Managing Priorities
 
-- **Click a device**: Moves it to #1 priority (in normal mode) or just selects it (in custom mode)
+- **Click a device**: Switches to it now. It does not change the priority order.
 - **Drag devices**: Reorder by dragging the handle
 - **Up/Down arrows**: Fine-tune order on hover
 

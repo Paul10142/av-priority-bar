@@ -6,7 +6,7 @@ import AppKit
 /// content, so this has to be measured and clamped rather than left to grow.
 private enum PanelMetrics {
     static let minContentHeight: CGFloat = 140
-    static let maxContentHeight: CGFloat = 400
+    static let maxContentHeight: CGFloat = 440
 }
 
 private struct ContentHeightKey: PreferenceKey {
@@ -16,11 +16,23 @@ private struct ContentHeightKey: PreferenceKey {
     }
 }
 
+enum PanelTab: String, CaseIterable {
+    case audio
+    case camera
+
+    var label: String { self == .audio ? "Audio" : "Camera" }
+    var icon: String { self == .audio ? "speaker.wave.2.fill" : "camera.fill" }
+}
+
 struct MenuBarView: View {
     @EnvironmentObject var audioManager: AudioManager
     @EnvironmentObject var cameraManager: CameraManager
-    @AppStorage("showCameraSection") private var showCamera: Bool = false
+    @AppStorage("selectedTab") private var selectedTabRaw: String = PanelTab.audio.rawValue
     @State private var contentHeight: CGFloat = PanelMetrics.minContentHeight
+
+    private var selectedTab: PanelTab {
+        PanelTab(rawValue: selectedTabRaw) ?? .audio
+    }
 
     /// The scroll area is given an explicit height so the menu bar window
     /// actually resizes when the content changes - left to itself it keeps
@@ -31,22 +43,23 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 14) {
-                ModeToggleView(showCamera: $showCamera)
-                if !showCamera {
-                    VolumeSliderView()
+            TabSwitcherView(selected: selectedTab) { tab in
+                selectedTabRaw = tab.rawValue
+                if tab == .camera {
+                    cameraManager.requestAccessIfNeeded()
+                    cameraManager.refreshCameras()
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .background(Color.primary.opacity(0.02))
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
 
             Divider()
                 .padding(.horizontal, 12)
 
             ScrollView {
                 Group {
-                    if showCamera {
+                    if selectedTab == .camera {
                         CameraContentView()
                     } else {
                         AudioContentView()
@@ -69,31 +82,58 @@ struct MenuBarView: View {
             Divider()
                 .padding(.horizontal, 12)
 
-            FooterView(showCamera: showCamera)
+            FooterView(tab: selectedTab)
         }
         .frame(width: 340)
-        .onAppear {
-            cameraManager.syncAutoSwitchFromSharedMode()
+    }
+}
+
+struct TabSwitcherView: View {
+    let selected: PanelTab
+    let onSelect: (PanelTab) -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(PanelTab.allCases, id: \.self) { tab in
+                let isSelected = tab == selected
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { onSelect(tab) }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 11))
+                        Text(tab.label)
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isSelected ? Color.accentColor : Color.clear)
+                    )
+                    .foregroundColor(isSelected ? .white : .secondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .onChange(of: audioManager.isCustomMode) { _, isCustom in
-            // The hand-raised button is one switch for the whole app.
-            cameraManager.setAutoSwitch(!isCustom)
-        }
+        .padding(3)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
     }
 }
 
 struct FooterView: View {
     @EnvironmentObject var audioManager: AudioManager
     @EnvironmentObject var cameraManager: CameraManager
-    let showCamera: Bool
+    let tab: PanelTab
 
     private var isEditing: Bool {
-        showCamera ? cameraManager.isEditMode : audioManager.isEditMode
+        tab == .camera ? cameraManager.isEditMode : audioManager.isEditMode
     }
 
     var body: some View {
         HStack(spacing: 16) {
-            if !showCamera && !audioManager.isEditMode {
+            if tab == .audio && !audioManager.isEditMode {
                 HiddenDevicesToggleView()
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
@@ -104,7 +144,7 @@ struct FooterView: View {
 
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
-                    if showCamera {
+                    if tab == .camera {
                         cameraManager.toggleEditMode()
                     } else {
                         audioManager.toggleEditMode()
@@ -120,7 +160,7 @@ struct FooterView: View {
                 .foregroundColor(isEditing ? .accentColor : .secondary)
             }
             .buttonStyle(.plain)
-            .help(showCamera ? "Show every camera ever connected" : "Show every audio device ever connected")
+            .help(tab == .camera ? "Show every camera ever connected" : "Show every audio device ever connected")
 
             Button {
                 NSApplication.shared.terminate(nil)
@@ -138,14 +178,26 @@ struct FooterView: View {
     }
 }
 
-/// The original audio sections, unchanged apart from living inside the shared
-/// scroll area rather than owning one.
+/// All three audio sections at once, each with its own volume control sitting
+/// directly under the list it belongs to.
 struct AudioContentView: View {
     @EnvironmentObject var audioManager: AudioManager
 
+    private var activeSpeaker: AudioDevice? {
+        audioManager.speakerDevices.first { $0.id == audioManager.currentOutputId }
+    }
+
+    private var activeHeadphone: AudioDevice? {
+        audioManager.headphoneDevices.first { $0.id == audioManager.currentOutputId }
+    }
+
+    private var activeMicrophone: AudioDevice? {
+        audioManager.inputDevices.first { $0.id == audioManager.currentInputId }
+    }
+
     var body: some View {
         VStack(spacing: 20) {
-            if audioManager.currentMode == .speaker || audioManager.isCustomMode {
+            VStack(spacing: 10) {
                 DeviceSectionView(
                     title: "Speakers",
                     icon: "speaker.wave.2.fill",
@@ -153,20 +205,19 @@ struct AudioContentView: View {
                     currentDeviceId: audioManager.currentOutputId,
                     onMove: audioManager.moveSpeakerDevice,
                     onSelect: { device in
-                        if !audioManager.isCustomMode {
-                            audioManager.setMode(.speaker)
-                        }
+                        audioManager.setMode(.speaker)
                         audioManager.setOutputDevice(device)
                     },
                     onHide: { audioManager.hideDevice($0, category: .speaker) },
                     onUnhide: { audioManager.unhideDevice($0, category: .speaker) },
                     category: .speaker,
                     showCategoryPicker: true,
-                    isActiveCategory: audioManager.currentMode == .speaker || audioManager.isCustomMode
+                    isActiveCategory: audioManager.currentMode == .speaker
                 )
+                DeviceVolumeSliderView(device: activeSpeaker, fallbackIcon: "speaker.wave.2.fill")
             }
 
-            if audioManager.currentMode == .headphone || audioManager.isCustomMode {
+            VStack(spacing: 10) {
                 DeviceSectionView(
                     title: "Headphones",
                     icon: "headphones",
@@ -174,169 +225,94 @@ struct AudioContentView: View {
                     currentDeviceId: audioManager.currentOutputId,
                     onMove: audioManager.moveHeadphoneDevice,
                     onSelect: { device in
-                        if !audioManager.isCustomMode {
-                            audioManager.setMode(.headphone)
-                        }
+                        audioManager.setMode(.headphone)
                         audioManager.setOutputDevice(device)
                     },
                     onHide: { audioManager.hideDevice($0, category: .headphone) },
                     onUnhide: { audioManager.unhideDevice($0, category: .headphone) },
                     category: .headphone,
                     showCategoryPicker: true,
-                    isActiveCategory: audioManager.currentMode == .headphone || audioManager.isCustomMode
+                    isActiveCategory: audioManager.currentMode == .headphone
                 )
+                DeviceVolumeSliderView(device: activeHeadphone, fallbackIcon: "headphones")
             }
 
-            DeviceSectionView(
-                title: "Microphones",
-                icon: "mic.fill",
-                devices: audioManager.inputDevices,
-                currentDeviceId: audioManager.currentInputId,
-                onMove: audioManager.moveInputDevice,
-                onSelect: audioManager.setInputDevice,
-                onHide: { audioManager.hideDevice($0, category: nil) },
-                onUnhide: { audioManager.unhideDevice($0, category: nil) },
-                category: nil,
-                showCategoryPicker: false
-            )
+            VStack(spacing: 10) {
+                DeviceSectionView(
+                    title: "Microphones",
+                    icon: "mic.fill",
+                    devices: audioManager.inputDevices,
+                    currentDeviceId: audioManager.currentInputId,
+                    onMove: audioManager.moveInputDevice,
+                    onSelect: audioManager.setInputDevice,
+                    onHide: { audioManager.hideDevice($0, category: nil) },
+                    onUnhide: { audioManager.unhideDevice($0, category: nil) },
+                    category: nil,
+                    showCategoryPicker: false
+                )
+                DeviceVolumeSliderView(device: activeMicrophone, fallbackIcon: "mic.fill")
+            }
         }
     }
 }
 
-struct ModeToggleView: View {
+/// Volume for one specific device - the one currently in use in that section.
+/// Hidden entirely for devices that expose no volume control, rather than
+/// showing a slider that does nothing.
+struct DeviceVolumeSliderView: View {
     @EnvironmentObject var audioManager: AudioManager
-    @Binding var showCamera: Bool
+    let device: AudioDevice?
+    let fallbackIcon: String
+
+    private var isMuted: Bool {
+        guard let device else { return false }
+        return audioManager.isDeviceMuted(device)
+    }
+
+    private var level: Float {
+        guard let device else { return 0 }
+        return audioManager.volume(for: device)
+    }
 
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(OutputCategory.allCases, id: \.self) { mode in
-                let isSelected = !showCamera && audioManager.currentMode == mode && !audioManager.isCustomMode
+        if let device, audioManager.hasVolumeControl(device) {
+            HStack(spacing: 10) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showCamera = false
-                        if audioManager.isCustomMode {
-                            audioManager.setCustomMode(false)
-                        }
-                        audioManager.setMode(mode)
-                    }
+                    audioManager.toggleMute(device)
                 } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: mode.icon)
-                            .font(.system(size: 11))
-                        Text(mode.label)
-                            .font(.system(size: 12, weight: .medium))
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(isSelected ? Color.accentColor : Color.clear)
-                    )
-                    .foregroundColor(isSelected ? .white : .secondary)
+                    Image(systemName: isMuted ? mutedIcon : fallbackIcon)
+                        .font(.system(size: 12))
+                        .foregroundColor(isMuted ? .red : .accentColor)
+                        .frame(width: 20)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .help(isMuted ? "Unmute \(device.name)" : "Mute \(device.name)")
+
+                Slider(
+                    value: Binding(
+                        get: { Double(level) },
+                        set: { audioManager.setVolume(Float($0), for: device) }
+                    ),
+                    in: 0...1
+                )
+                .controlSize(.small)
+                .disabled(isMuted)
+
+                Text("\(Int(level * 100))%")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(.secondary)
+                    .frame(width: 36, alignment: .trailing)
             }
-
-            // Cameras sit here rather than in a tab strip of their own - same
-            // row, same behaviour, one fewer layer of navigation.
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showCamera = true
-                }
-            } label: {
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 12))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(showCamera ? Color.accentColor : Color.clear)
-                    )
-                    .foregroundColor(showCamera ? .white : .secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Cameras")
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    audioManager.setCustomMode(!audioManager.isCustomMode)
-                }
-            } label: {
-                Image(systemName: "hand.raised.fill")
-                    .font(.system(size: 12))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(audioManager.isCustomMode ? Color.orange : Color.clear)
-                    )
-                    .foregroundColor(audioManager.isCustomMode ? .white : .secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Manual mode - stop auto-switching, for cameras as well as sound")
-        }
-        .padding(4)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.primary.opacity(0.05))
-        )
-        .animation(.easeInOut(duration: 0.2), value: audioManager.currentMode)
-        .animation(.easeInOut(duration: 0.2), value: audioManager.isCustomMode)
-        .animation(.easeInOut(duration: 0.2), value: showCamera)
-    }
-}
-
-struct VolumeSliderView: View {
-    @EnvironmentObject var audioManager: AudioManager
-
-    var volumeIcon: String {
-        if audioManager.currentMode == .headphone {
-            return "headphones"
-        } else {
-            if audioManager.volume <= 0 {
-                return "speaker.fill"
-            } else if audioManager.volume < 0.33 {
-                return "speaker.wave.1.fill"
-            } else if audioManager.volume < 0.66 {
-                return "speaker.wave.2.fill"
-            } else {
-                return "speaker.wave.3.fill"
+            .padding(.leading, 8)
+            .onScrollWheel { delta in
+                audioManager.setVolume(level + Float(delta * 0.02), for: device)
             }
         }
     }
 
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: volumeIcon)
-                .font(.system(size: 13))
-                .foregroundColor(.accentColor)
-                .frame(width: 20)
-                .animation(.easeInOut(duration: 0.15), value: volumeIcon)
-
-            Slider(
-                value: Binding(
-                    get: { Double(audioManager.volume) },
-                    set: { audioManager.setVolume(Float($0)) }
-                ),
-                in: 0...1
-            )
-            .controlSize(.small)
-
-            Text("\(Int(audioManager.volume * 100))%")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(.secondary)
-                .frame(width: 36, alignment: .trailing)
-        }
-        .onScrollWheel { delta in
-            let newVolume = audioManager.volume + Float(delta * 0.02)
-            audioManager.setVolume(max(0, min(1, newVolume)))
-        }
+    private var mutedIcon: String {
+        device?.type == .input ? "mic.slash.fill" : "speaker.slash.fill"
     }
 }
 

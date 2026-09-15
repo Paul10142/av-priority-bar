@@ -39,7 +39,6 @@ class PriorityManager {
     private let headphonePrioritiesKey = "headphonePriorities"
     private let deviceCategoriesKey = "deviceCategories"
     private let currentModeKey = "currentMode"
-    private let customModeKey = "customMode"
     private let hiddenDevicesKey = "hiddenDevices"
     private let knownDevicesKey = "knownDevices"
 
@@ -94,11 +93,6 @@ class PriorityManager {
         set {
             defaults.set(newValue.rawValue, forKey: currentModeKey)
         }
-    }
-
-    var isCustomMode: Bool {
-        get { defaults.bool(forKey: customModeKey) }
-        set { defaults.set(newValue, forKey: customModeKey) }
     }
 
     // MARK: - Device Categories

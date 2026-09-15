@@ -152,6 +152,73 @@ class AudioDeviceService {
         )
     }
 
+    /// Per-device volume, so each section's slider drives its own device rather
+    /// than whatever happens to be the system default.
+    func getDeviceVolume(_ deviceId: AudioObjectID, type: AudioDeviceType) -> Float {
+        var propertyAddress = volumeAddress(for: type)
+        var volume: Float32 = 0
+        var dataSize = UInt32(MemoryLayout<Float32>.size)
+        let status = AudioObjectGetPropertyData(deviceId, &propertyAddress, 0, nil, &dataSize, &volume)
+        return status == noErr ? volume : 0
+    }
+
+    func setDeviceVolume(_ deviceId: AudioObjectID, type: AudioDeviceType, volume: Float) {
+        var propertyAddress = volumeAddress(for: type)
+        var mutableVolume = max(0, min(1, volume))
+        let dataSize = UInt32(MemoryLayout<Float32>.size)
+        AudioObjectSetPropertyData(deviceId, &propertyAddress, 0, nil, dataSize, &mutableVolume)
+    }
+
+    /// Plenty of devices (most USB mics, aggregate devices) expose no volume
+    /// control at all - their sliders are hidden rather than shown doing nothing.
+    func deviceHasVolumeControl(_ deviceId: AudioObjectID, type: AudioDeviceType) -> Bool {
+        var propertyAddress = volumeAddress(for: type)
+        return AudioObjectHasProperty(deviceId, &propertyAddress)
+    }
+
+    func setDeviceMuted(_ deviceId: AudioObjectID, type: AudioDeviceType, muted: Bool) {
+        let scope: AudioObjectPropertyScope = type == .input
+            ? kAudioDevicePropertyScopeInput
+            : kAudioDevicePropertyScopeOutput
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: scope,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var value: UInt32 = muted ? 1 : 0
+        let dataSize = UInt32(MemoryLayout<UInt32>.size)
+
+        if AudioObjectHasProperty(deviceId, &propertyAddress) {
+            AudioObjectSetPropertyData(deviceId, &propertyAddress, 0, nil, dataSize, &value)
+            return
+        }
+        // No mute control: fall back to dropping the volume, which is how the
+        // read side already treats a silent device.
+        if type == .output {
+            setDeviceVolume(deviceId, type: type, volume: muted ? 0 : 0.25)
+        }
+    }
+
+    func deviceHasMuteControl(_ deviceId: AudioObjectID, type: AudioDeviceType) -> Bool {
+        let scope: AudioObjectPropertyScope = type == .input
+            ? kAudioDevicePropertyScopeInput
+            : kAudioDevicePropertyScopeOutput
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: scope,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        return AudioObjectHasProperty(deviceId, &propertyAddress)
+    }
+
+    private func volumeAddress(for type: AudioDeviceType) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(
+            mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+            mScope: type == .input ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+    }
+
     func isDeviceMuted(_ deviceId: AudioObjectID, type: AudioDeviceType) -> Bool {
         let scope: AudioObjectPropertyScope = type == .input
             ? kAudioDevicePropertyScopeInput

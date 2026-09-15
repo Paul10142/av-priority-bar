@@ -156,6 +156,47 @@ struct DraggableDeviceRow: View {
     }
 
     var body: some View {
+        rowContent
+            .modifier(RowChromeModifier(
+                isSelected: isSelected,
+                isDisconnected: isDisconnected,
+                isHovering: isHovering,
+                isDragging: isDragging,
+                isGrayed: isGrayed,
+                isDropTarget: isDropTarget,
+                isDropTargetBelow: isDropTargetBelow
+            ))
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    isHovering = hovering
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !isDisconnected {
+                    onSelect()
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 5)
+                    .onChanged { value in
+                        if !isDragging {
+                            onDragStarted()
+                        }
+                        let newTarget = calculateTarget(offset: value.translation.height)
+                        if newTarget != lastReportedTarget {
+                            lastReportedTarget = newTarget
+                            onTargetChanged(newTarget)
+                        }
+                    }
+                    .onEnded { _ in
+                        lastReportedTarget = nil
+                        onDragEnded()
+                    }
+            )
+    }
+
+    private var rowContent: some View {
         HStack(spacing: 8) {
             // Drag handle + priority label area
             if !isHiddenSection {
@@ -196,6 +237,7 @@ struct DraggableDeviceRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .foregroundColor(isGrayed || isNeverUse ? .secondary : .primary)
+                    .help(device.name)
 
                 if let icon = statusIcon {
                     Image(systemName: icon)
@@ -321,74 +363,56 @@ struct DraggableDeviceRow: View {
         .padding(.leading, 8)
         .padding(.trailing, 10)
         .padding(.vertical, 5)
-        .opacity(isDragging ? 0.5 : (isGrayed ? 0.6 : 1.0))
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isSelected && !isDisconnected ? Color.accentColor.opacity(0.12) : (isHovering ? Color.primary.opacity(0.06) : Color.clear))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected && !isDisconnected ? Color.accentColor.opacity(0.8) : Color.clear, lineWidth: 1.5)
-        )
-        // Drop indicator above this row
-        .overlay(alignment: .top) {
-            if isDropTarget {
-                DropIndicatorLine()
-                    .offset(y: -5)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-            }
-        }
-        // Drop indicator below this row (for last position)
-        .overlay(alignment: .bottom) {
-            if isDropTargetBelow {
-                DropIndicatorLine()
-                    .offset(y: 5)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-            }
-        }
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.12)) {
-                isHovering = hovering
-            }
-        }
-        // Highlight the dragged row with a border instead of moving it
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isDragging ? Color.accentColor : Color.clear, lineWidth: 2)
-        )
-        .scaleEffect(isDragging ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.15), value: isHovering)
-        .animation(.easeInOut(duration: 0.15), value: isSelected)
-        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isDragging)
-        .animation(.easeInOut(duration: 0.1), value: isDropTarget)
-        .animation(.easeInOut(duration: 0.1), value: isDropTargetBelow)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if !isDisconnected && audioManager.isCustomMode {
-                onSelect()
-            }
-        }
-        .gesture(
-            DragGesture(minimumDistance: 5)
-                .onChanged { value in
-                    if !isDragging {
-                        onDragStarted()
-                    }
-                    let newTarget = calculateTarget(offset: value.translation.height)
-                    if newTarget != lastReportedTarget {
-                        lastReportedTarget = newTarget
-                        onTargetChanged(newTarget)
-                    }
-                }
-                .onEnded { _ in
-                    lastReportedTarget = nil
-                    onDragEnded()
-                }
-        )
     }
 }
 
-// Drop indicator line
+/// The row's background, borders, drop indicators and animations, lifted out of
+/// the row body so the Swift type checker doesn't choke on one long chain.
+private struct RowChromeModifier: ViewModifier {
+    let isSelected: Bool
+    let isDisconnected: Bool
+    let isHovering: Bool
+    let isDragging: Bool
+    let isGrayed: Bool
+    let isDropTarget: Bool
+    let isDropTargetBelow: Bool
+
+    private var isActive: Bool { isSelected && !isDisconnected }
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isDragging ? 0.5 : (isGrayed ? 0.6 : 1.0))
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isActive ? Color.accentColor.opacity(0.12) : (isHovering ? Color.primary.opacity(0.06) : Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isActive ? Color.accentColor.opacity(0.8) : Color.clear, lineWidth: 1.5)
+            )
+            .overlay(alignment: .top) {
+                if isDropTarget {
+                    DropIndicatorLine().offset(y: -5)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if isDropTargetBelow {
+                    DropIndicatorLine().offset(y: 5)
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isDragging ? Color.accentColor : Color.clear, lineWidth: 2)
+            )
+            .scaleEffect(isDragging ? 1.02 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: isHovering)
+            .animation(.easeInOut(duration: 0.15), value: isSelected)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isDragging)
+            .animation(.easeInOut(duration: 0.1), value: isDropTarget)
+            .animation(.easeInOut(duration: 0.1), value: isDropTargetBelow)
+    }
+}
+
 struct DropIndicatorLine: View {
     var body: some View {
         HStack(spacing: 0) {

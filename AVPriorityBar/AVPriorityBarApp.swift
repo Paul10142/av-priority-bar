@@ -22,7 +22,6 @@ struct AVPriorityBarApp: App {
                 volume: audioManager.volume,
                 isOutputMuted: audioManager.isActiveOutputMuted,
                 isInputMuted: audioManager.isActiveInputMuted,
-                isCustomMode: audioManager.isCustomMode,
                 mode: audioManager.currentMode,
                 micFlash: audioManager.micFlashState
             )
@@ -35,26 +34,31 @@ struct MenuBarLabel: View {
     let volume: Float
     let isOutputMuted: Bool
     let isInputMuted: Bool
-    let isCustomMode: Bool
     let mode: OutputCategory
     let micFlash: Bool
 
+    /// Every state occupies the same two fixed-width slots, so the icon never
+    /// changes width and never shoves the other menu bar items sideways.
+    private let slotWidth: CGFloat = 16
+
     var body: some View {
         HStack(spacing: 2) {
-            if isInputMuted {
-                Image(systemName: micFlash ? "mic.fill" : "mic.slash.fill")
+            Image(systemName: micFlash ? "mic.fill" : "mic.slash.fill")
+                .frame(width: slotWidth)
+                .opacity(isInputMuted ? 1 : 0)
+
+            Group {
+                if isOutputMuted {
+                    Image(systemName: "speaker.slash.fill")
+                } else if mode == .headphone {
+                    Image(systemName: "headphones")
+                } else {
+                    Image(systemName: "speaker.wave.3.fill", variableValue: Double(volume))
+                }
             }
-            if isCustomMode {
-                Image(systemName: "hand.raised.fill")
-            } else if mode == .headphone {
-                Image(systemName: "headphones")
-            }
-            if isOutputMuted {
-                Image(systemName: "speaker.slash.fill")
-            } else {
-                Image(systemName: "speaker.wave.3.fill", variableValue: Double(volume))
-            }
+            .frame(width: slotWidth)
         }
+        .frame(width: slotWidth * 2 + 2, alignment: .leading)
     }
 }
 
@@ -97,11 +101,11 @@ class AudioManager: ObservableObject {
     @Published var currentMode: OutputCategory = .speaker
     @Published var volume: Float = 0
     @Published var isEditMode: Bool = false
-    @Published var isCustomMode: Bool = false
     @Published var mutedDeviceIds: Set<AudioObjectID> = []
     @Published var isActiveOutputMuted: Bool = false
     @Published var isActiveInputMuted: Bool = false
     @Published var micFlashState: Bool = false
+    @Published var deviceVolumes: [AudioObjectID: Float] = [:]
 
     private let deviceService = AudioDeviceService()
     private var micFlashTimer: Timer?
@@ -114,6 +118,46 @@ class AudioManager: ObservableObject {
 
     func refreshVolume() {
         volume = deviceService.getOutputVolume()
+        refreshDeviceVolumes()
+    }
+
+    /// Each section drives its own device's volume, so the levels of the active
+    /// speaker, headphone and microphone are all tracked, not just the default.
+    private func refreshDeviceVolumes() {
+        var levels: [AudioObjectID: Float] = [:]
+        if let outputId = currentOutputId {
+            levels[outputId] = deviceService.getDeviceVolume(outputId, type: .output)
+        }
+        if let inputId = currentInputId {
+            levels[inputId] = deviceService.getDeviceVolume(inputId, type: .input)
+        }
+        deviceVolumes = levels
+    }
+
+    func volume(for device: AudioDevice) -> Float {
+        if let cached = deviceVolumes[device.id] { return cached }
+        return deviceService.getDeviceVolume(device.id, type: device.type)
+    }
+
+    func setVolume(_ newVolume: Float, for device: AudioDevice) {
+        let clamped = max(0, min(1, newVolume))
+        deviceVolumes[device.id] = clamped
+        deviceService.setDeviceVolume(device.id, type: device.type, volume: clamped)
+        if device.id == currentOutputId {
+            volume = clamped
+        }
+    }
+
+    func hasVolumeControl(_ device: AudioDevice) -> Bool {
+        device.isConnected && deviceService.deviceHasVolumeControl(device.id, type: device.type)
+    }
+
+    func toggleMute(_ device: AudioDevice) {
+        guard device.isConnected else { return }
+        let shouldMute = !isDeviceMuted(device)
+        deviceService.setDeviceMuted(device.id, type: device.type, muted: shouldMute)
+        refreshMuteStatus()
+        refreshVolume()
     }
 
     func refreshMuteStatus() {
@@ -175,17 +219,14 @@ class AudioManager: ObservableObject {
 
     init() {
         currentMode = priorityManager.currentMode
-        isCustomMode = priorityManager.isCustomMode
         refreshDevices()
         previousConnectedUIDs = connectedDeviceUIDs  // Initialize tracking
         refreshVolume()
         refreshMuteStatus()
         setupDeviceChangeListener()
         setupMuteVolumeListener()
-        if !isCustomMode {
-            applyHighestPriorityInput()
-            applyHighestPriorityOutput()
-        }
+        applyHighestPriorityInput()
+        applyHighestPriorityOutput()
     }
 
     private func setupMuteVolumeListener() {
@@ -271,34 +312,17 @@ class AudioManager: ObservableObject {
     /// Tracks device UIDs from the previous refresh to detect new connections
     private var previousConnectedUIDs: Set<String> = []
     
+    /// Which output category auto-switching is currently aiming at. Set by the
+    /// user picking a device, or by headphones appearing and disappearing.
     func setMode(_ mode: OutputCategory) {
         currentMode = mode
         priorityManager.currentMode = mode
-        if !isCustomMode {
-            applyHighestPriorityOutput()
-        }
-    }
-
-    func toggleMode() {
-        let newMode: OutputCategory = currentMode == .speaker ? .headphone : .speaker
-        setMode(newMode)
-    }
-
-    func setCustomMode(_ enabled: Bool) {
-        isCustomMode = enabled
-        priorityManager.isCustomMode = enabled
-        if !enabled {
-            applyHighestPriorityInput()
-            applyHighestPriorityOutput()
-        }
     }
 
     func setCategory(_ category: OutputCategory, for device: AudioDevice) {
         priorityManager.setCategory(category, for: device)
         refreshDevices()
-        if !isCustomMode {
-            applyHighestPriorityOutput()
-        }
+        applyHighestPriorityOutput()
     }
 
     func hideDevice(_ device: AudioDevice, category: OutputCategory? = nil) {
@@ -310,12 +334,10 @@ class AudioManager: ObservableObject {
             priorityManager.hideDevice(device)
         }
         refreshDevices()
-        if !isCustomMode {
-            if device.type == .input {
-                applyHighestPriorityInput()
-            } else {
-                applyHighestPriorityOutput()
-            }
+        if device.type == .input {
+            applyHighestPriorityInput()
+        } else {
+            applyHighestPriorityOutput()
         }
     }
 
@@ -323,9 +345,7 @@ class AudioManager: ObservableObject {
         priorityManager.hideDevice(device, inCategory: .speaker)
         priorityManager.hideDevice(device, inCategory: .headphone)
         refreshDevices()
-        if !isCustomMode {
-            applyHighestPriorityOutput()
-        }
+        applyHighestPriorityOutput()
     }
 
     func unhideDevice(_ device: AudioDevice, category: OutputCategory? = nil) {
@@ -356,12 +376,10 @@ class AudioManager: ObservableObject {
     func setNeverUse(_ device: AudioDevice, neverUse: Bool) {
         priorityManager.setNeverUse(device, neverUse: neverUse)
         refreshDevices()
-        if !isCustomMode {
-            if device.type == .input {
-                applyHighestPriorityInput()
-            } else {
-                applyHighestPriorityOutput()
-            }
+        if device.type == .input {
+            applyHighestPriorityInput()
+        } else {
+            applyHighestPriorityOutput()
         }
     }
 
@@ -442,12 +460,10 @@ class AudioManager: ObservableObject {
         let newlyConnectedUIDs = connectedDeviceUIDs.subtracting(oldConnectedUIDs)
         previousConnectedUIDs = connectedDeviceUIDs
         
-        if !isCustomMode {
-            // Auto-switch mode only when a new headphone connects or all headphones disconnect
-            autoSwitchModeIfNeeded(newlyConnectedUIDs: newlyConnectedUIDs)
-            applyHighestPriorityInput()
-            applyHighestPriorityOutput()
-        }
+        // Auto-switch mode only when a new headphone connects or all headphones disconnect
+        autoSwitchModeIfNeeded(newlyConnectedUIDs: newlyConnectedUIDs)
+        applyHighestPriorityInput()
+        applyHighestPriorityOutput()
     }
     
     /// Automatically switches between headphone and speaker mode based on device connections.

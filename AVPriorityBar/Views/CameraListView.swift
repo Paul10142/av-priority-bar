@@ -191,7 +191,7 @@ struct DraggableCameraRow: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .frame(width: 16)
-                    .help(camera.kind.label)
+                    .help(camera.kind.explanation)
 
                 Text(camera.name)
                     .font(.system(size: 13))
@@ -199,6 +199,7 @@ struct DraggableCameraRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .foregroundColor(isDisconnected || isIgnored ? .secondary : .primary)
+                    .help(camera.name)
 
                 if isDisconnected {
                     Image(systemName: "wifi.slash")
@@ -300,6 +301,13 @@ struct DraggableCameraRow: View {
         .scaleEffect(isDragging ? 1.02 : 1.0)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.12)) { isHovering = hovering }
+            // Hovering previews the camera without touching priority or the
+            // active choice - look first, commit only if you click.
+            if hovering {
+                cameraManager.hoveredCameraID = isDisconnected ? nil : camera.uniqueID
+            } else if cameraManager.hoveredCameraID == camera.uniqueID {
+                cameraManager.hoveredCameraID = nil
+            }
         }
         .animation(.easeInOut(duration: 0.15), value: isHovering)
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isDragging)

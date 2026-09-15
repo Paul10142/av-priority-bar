@@ -10,7 +10,9 @@ final class CameraManager: ObservableObject {
     @Published var ignoredCameras: [CameraDevice] = []
     @Published var currentPreferredID: String?
     @Published var authState: CameraAuthState = .notDetermined
-    @Published var isAutoSwitchEnabled: Bool = true
+    /// Which camera the preview is showing because the pointer is over its row.
+    /// Hovering is look-only - it never changes priority or the active camera.
+    @Published var hoveredCameraID: String?
     @Published var isEditMode: Bool = false
 
     private let service = CameraService()
@@ -19,13 +21,10 @@ final class CameraManager: ObservableObject {
 
     init() {
         authState = service.authState
-        isAutoSwitchEnabled = priorityManager.isAutoSwitchEnabled
         refreshCameras()
         seedDefaultOrderIfNeeded()
         setupListeners()
-        if isAutoSwitchEnabled {
-            applyHighestPriorityCamera()
-        }
+        applyHighestPriorityCamera()
     }
 
     /// On a first run there is no saved order, so the raw discovery order would
@@ -57,7 +56,7 @@ final class CameraManager: ObservableObject {
             guard let self else { return }
             self.authState = self.service.authState
             self.refreshCameras()
-            if self.isAutoSwitchEnabled { self.applyHighestPriorityCamera() }
+            self.applyHighestPriorityCamera()
         }
     }
 
@@ -110,20 +109,18 @@ final class CameraManager: ObservableObject {
     }
 
     /// True when the active camera is not the one priority says it should be -
-    /// usually because another app wrote its own preference.
+    /// either you picked another one, or another app wrote its own preference.
     var isOverridden: Bool {
-        guard isAutoSwitchEnabled, let top = topPriorityCamera, let current = currentPreferredID else { return false }
+        guard let top = topPriorityCamera, let current = currentPreferredID else { return false }
         return top.uniqueID != current
     }
 
     // MARK: - Actions
 
+    /// A click uses the camera now. It never reorders the list - that is what
+    /// dragging is for.
     func selectCamera(_ camera: CameraDevice) {
         guard isConnected(camera) else { return }
-        if isAutoSwitchEnabled {
-            // In auto mode a click means "this is now my first choice".
-            priorityManager.promoteToTop(camera)
-        }
         service.setPreferred(uniqueID: camera.uniqueID)
         refreshCameras()
     }
@@ -131,27 +128,8 @@ final class CameraManager: ObservableObject {
     func moveCamera(from source: IndexSet, to destination: Int) {
         cameras.move(fromOffsets: source, toOffset: destination)
         priorityManager.savePriorities(cameras)
-        if isAutoSwitchEnabled {
-            applyHighestPriorityCamera()
-        }
+        applyHighestPriorityCamera()
         refreshCameras()
-    }
-
-    /// Driven by the shared hand-raised button in the header, not by a
-    /// camera-only control.
-    func setAutoSwitch(_ enabled: Bool) {
-        guard enabled != isAutoSwitchEnabled else { return }
-        isAutoSwitchEnabled = enabled
-        priorityManager.isAutoSwitchEnabled = enabled
-        if enabled { applyHighestPriorityCamera() }
-    }
-
-    /// Re-reads the shared manual-mode flag after the audio side changes it.
-    func syncAutoSwitchFromSharedMode() {
-        let shared = priorityManager.isAutoSwitchEnabled
-        guard shared != isAutoSwitchEnabled else { return }
-        isAutoSwitchEnabled = shared
-        if shared { applyHighestPriorityCamera() }
     }
 
     func isIgnored(_ camera: CameraDevice) -> Bool {
@@ -161,7 +139,7 @@ final class CameraManager: ObservableObject {
     func setIgnored(_ camera: CameraDevice, ignored: Bool) {
         priorityManager.setIgnored(camera, ignored: ignored)
         refreshCameras()
-        if isAutoSwitchEnabled { applyHighestPriorityCamera() }
+        applyHighestPriorityCamera()
     }
 
     func forgetCamera(_ camera: CameraDevice) {
@@ -194,7 +172,7 @@ final class CameraManager: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.refreshCameras()
-                if self.isAutoSwitchEnabled { self.applyHighestPriorityCamera() }
+                self.applyHighestPriorityCamera()
             }
         }
         service.onPreferredCameraChanged = { [weak self] in

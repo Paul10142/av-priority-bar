@@ -25,20 +25,6 @@ final class CameraPriorityManager {
     private let prioritiesKey = "cameraPriorities"
     private let knownCamerasKey = "knownCameras"
     private let ignoredCamerasKey = "ignoredCameras"
-    /// The hand-raised button in the header is one switch for the whole app, so
-    /// cameras read the same stored flag the audio side does rather than keeping
-    /// a second, separately-remembered one.
-    private let customModeKey = "customMode"
-
-    // MARK: - Auto-switching
-
-    /// When on, the highest-priority connected camera is made the system
-    /// preference automatically. Off is the app-wide manual mode.
-    var isAutoSwitchEnabled: Bool {
-        get { !defaults.bool(forKey: customModeKey) }
-        set { defaults.set(!newValue, forKey: customModeKey) }
-    }
-
     // MARK: - Known cameras
 
     func getKnownCameras() -> [StoredCamera] {
