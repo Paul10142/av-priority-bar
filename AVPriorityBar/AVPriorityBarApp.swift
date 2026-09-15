@@ -47,8 +47,7 @@ struct AVPriorityBarApp: App {
                 volume: audioManager.volume,
                 isOutputMuted: audioManager.isActiveOutputMuted,
                 isInputMuted: audioManager.isActiveInputMuted,
-                mode: audioManager.currentMode,
-                micFlash: audioManager.micFlashState
+                mode: audioManager.currentMode
             )
         }
         .menuBarExtraStyle(.window)
@@ -60,30 +59,22 @@ struct MenuBarLabel: View {
     let isOutputMuted: Bool
     let isInputMuted: Bool
     let mode: OutputCategory
-    let micFlash: Bool
 
-    /// Every state occupies the same two fixed-width slots, so the icon never
-    /// changes width and never shoves the other menu bar items sideways.
-    private let slotWidth: CGFloat = 16
+    /// A single symbol, so the item is always exactly one glyph wide and never
+    /// shifts the rest of the menu bar. The state with the most to say wins.
+    private var symbol: String {
+        if isOutputMuted { return "speaker.slash.fill" }
+        if isInputMuted { return "mic.slash.fill" }
+        if mode == .headphone { return "headphones" }
+        return "speaker.wave.3.fill"
+    }
 
     var body: some View {
-        HStack(spacing: 2) {
-            Image(systemName: micFlash ? "mic.fill" : "mic.slash.fill")
-                .frame(width: slotWidth)
-                .opacity(isInputMuted ? 1 : 0)
-
-            Group {
-                if isOutputMuted {
-                    Image(systemName: "speaker.slash.fill")
-                } else if mode == .headphone {
-                    Image(systemName: "headphones")
-                } else {
-                    Image(systemName: "speaker.wave.3.fill", variableValue: Double(volume))
-                }
-            }
-            .frame(width: slotWidth)
+        if symbol == "speaker.wave.3.fill" {
+            Image(systemName: symbol, variableValue: Double(volume))
+        } else {
+            Image(systemName: symbol)
         }
-        .frame(width: slotWidth * 2 + 2, alignment: .leading)
     }
 }
 

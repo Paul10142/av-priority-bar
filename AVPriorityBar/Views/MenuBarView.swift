@@ -68,6 +68,9 @@ struct MenuBarView: View {
                 if tab == .camera {
                     cameraManager.requestAccessIfNeeded()
                     cameraManager.refreshCameras()
+                    if AppSettings.shared.openWindowWithCameraTab {
+                        MirrorWindowController.shared.show()
+                    }
                 }
             }
             .padding(.horizontal, 12)
@@ -106,6 +109,14 @@ struct MenuBarView: View {
             FooterView(tab: selectedTab)
         }
         .frame(width: 340)
+        .onAppear {
+            // Remember where the menu was opened, so the floating window can be
+            // placed under the menu bar icon.
+            MirrorWindowController.shared.lastMenuBarPoint = NSEvent.mouseLocation
+            if selectedTab == .camera && AppSettings.shared.openWindowWithCameraTab {
+                MirrorWindowController.shared.show()
+            }
+        }
     }
 }
 

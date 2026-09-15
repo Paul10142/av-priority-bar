@@ -172,8 +172,22 @@ class AudioDeviceService {
     /// Plenty of devices (most USB mics, aggregate devices) expose no volume
     /// control at all - their sliders are hidden rather than shown doing nothing.
     func deviceHasVolumeControl(_ deviceId: AudioObjectID, type: AudioDeviceType) -> Bool {
+        // Asking whether the property exists is not the same as being able to
+        // read it, and some devices answer the two differently. A successful
+        // read is the only answer that matters here.
         var propertyAddress = volumeAddress(for: type)
-        return AudioObjectHasProperty(deviceId, &propertyAddress)
+        var value: Float32 = 0
+        var dataSize = UInt32(MemoryLayout<Float32>.size)
+        if AudioObjectGetPropertyData(deviceId, &propertyAddress, 0, nil, &dataSize, &value) == noErr {
+            return true
+        }
+        var scalar = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: type == .input ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        dataSize = UInt32(MemoryLayout<Float32>.size)
+        return AudioObjectGetPropertyData(deviceId, &scalar, 0, nil, &dataSize, &value) == noErr
     }
 
     func setDeviceMuted(_ deviceId: AudioObjectID, type: AudioDeviceType, muted: Bool) {

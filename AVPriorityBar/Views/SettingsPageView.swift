@@ -70,18 +70,38 @@ struct SettingsPageView: View {
             group("Opening it") {
                 SettingsRow(label: "Shortcut") {
                     HStack(spacing: 8) {
-                        Text(hotKey.isRecording ? "Press keys…" : hotKey.displayString)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundColor(hotKey.isRecording ? .accentColor : .primary)
-                            .frame(minWidth: 70, alignment: .leading)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+                        // The box itself starts recording - reaching for a
+                        // separate Record button first is a step nobody expects.
+                        Button {
+                            if hotKey.isRecording {
+                                hotKey.stopRecording()
+                            } else {
+                                hotKey.startRecording()
+                            }
+                        } label: {
+                            Text(hotKey.isRecording ? "Press keys…" : hotKey.displayString)
+                                .font(.system(size: 14, weight: .medium))
+                                .tracking(2)
+                                .foregroundColor(hotKey.isRecording ? .accentColor : .primary)
+                                .frame(minWidth: 96, alignment: .center)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .fill(Color.primary.opacity(hotKey.isRecording ? 0.12 : 0.06))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .stroke(hotKey.isRecording ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                                )
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Click, then press the keys you want")
 
                         if hotKey.isRecording {
                             Button("Cancel") { hotKey.stopRecording() }.controlSize(.small)
-                        } else {
-                            Button("Record") { hotKey.startRecording() }.controlSize(.small)
+                        } else if hotKey.displayString != "None" {
                             Button("Clear") { hotKey.clear() }.controlSize(.small)
                         }
                     }
@@ -98,6 +118,11 @@ struct SettingsPageView: View {
 
             group("App") {
                 SettingsToggleRow(title: "Preview inside this menu", isOn: $settings.showPreviewInPanel)
+                SettingsToggleRow(
+                    title: "Open the window with the Camera tab",
+                    detail: "The floating window appears whenever you open Camera.",
+                    isOn: $settings.openWindowWithCameraTab
+                )
                 SettingsToggleRow(title: "Microphone check in the audio tab", isOn: $settings.micCheckEnabled)
                 SettingsToggleRow(
                     title: "Launch at login",

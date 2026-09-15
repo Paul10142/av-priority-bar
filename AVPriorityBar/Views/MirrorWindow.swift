@@ -16,6 +16,9 @@ final class MirrorWindowController: NSObject, NSWindowDelegate {
     /// shuts itself the instant it appears.
     private var openedAt: Date?
     private var autoCloseWork: DispatchWorkItem?
+    /// Where the menu bar panel was last opened, used to put the window under
+    /// the menu bar icon - AppKit doesn't hand out a MenuBarExtra's frame.
+    var lastMenuBarPoint: NSPoint?
 
     var isOpen: Bool { window?.isVisible ?? false }
 
@@ -63,6 +66,8 @@ final class MirrorWindowController: NSObject, NSWindowDelegate {
 
         let width = CGFloat(settings.windowWidth)
         let height = (width * 3 / 4).rounded()
+        // Only resize when the setting actually changed; otherwise a window the
+        // user dragged bigger would snap back every time it opened.
         if abs(panel.frame.width - width) > 1 {
             var frame = panel.frame
             // Grow from the top-left so the window doesn't crawl up the screen.
@@ -91,6 +96,10 @@ final class MirrorWindowController: NSObject, NSWindowDelegate {
             origin = NSPoint(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2)
         case .underNotch:
             origin = NSPoint(x: visible.midX - size.width / 2, y: visible.maxY - size.height - 4)
+        case .overMenuBarIcon:
+            let anchorX = lastMenuBarPoint?.x ?? (visible.maxX - size.width / 2 - margin)
+            let clampedX = min(max(anchorX - size.width / 2, visible.minX + margin), visible.maxX - size.width - margin)
+            origin = NSPoint(x: clampedX, y: visible.maxY - size.height - 4)
         }
         panel.setFrameOrigin(origin)
     }
@@ -124,11 +133,35 @@ final class MirrorWindowController: NSObject, NSWindowDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + AppSettings.shared.closeDelaySeconds, execute: work)
     }
 
+    /// A drag on the window's corner is the user setting the size, so it is
+    /// written back into settings rather than fought with.
+    func windowDidEndLiveResize(_ notification: Notification) {
+        guard let window else { return }
+        let settings = AppSettings.shared
+        settings.isSyncingFromWindow = true
+        settings.windowWidth = Double(window.frame.width)
+        settings.isSyncingFromWindow = false
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        // Moving it by hand means "remember this spot".
+        if AppSettings.shared.windowPosition != .remember, window?.inLiveResize == false {
+            AppSettings.shared.windowPosition = .remember
+        }
+    }
+
     func windowDidResignKey(_ notification: Notification) {
         guard AppSettings.shared.closeBehavior == .onClickAway else { return }
         // Ignore the handover from the menu bar popover that opened us.
         if let openedAt, Date().timeIntervalSince(openedAt) < 0.8 { return }
-        close()
+        // Opening this app's own menu is not "clicking away" - the window has
+        // to survive you going back to the panel to change a setting.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            let ourWindowIsKey = NSApp.keyWindow != nil
+            guard !ourWindowIsKey else { return }
+            self.close()
+        }
     }
 
     func windowWillClose(_ notification: Notification) {
