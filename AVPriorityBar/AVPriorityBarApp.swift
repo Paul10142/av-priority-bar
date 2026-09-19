@@ -64,11 +64,17 @@ enum AVPriorityBarMain {
     static func main() {
         // A brand-new status item is dropped at the far left of the menu bar -
         // exactly where menu bar managers like Ice keep their hidden section, so
-        // the icon exists and nobody can see it. A mid-bar position puts it in
-        // plain sight. (Cadence solves it the same way.)
+        // the icon exists and nobody can see it. (Cadence solves it the same way.)
+        //
+        // The number is a distance leftwards from the right-hand end of the bar,
+        // so a *smaller* value sits further right, and it has to stay clear of
+        // the hidden section. A manager's divider is itself just an item with a
+        // position: Ice's sits at 453 on the machine this was written for, and
+        // the 460 used here previously landed seven units the wrong side of it,
+        // hiding the icon it was meant to reveal.
         let positionKey = "NSStatusItem Preferred Position Item-0"
         if UserDefaults.standard.object(forKey: positionKey) == nil {
-            UserDefaults.standard.set(460, forKey: positionKey)
+            UserDefaults.standard.set(320, forKey: positionKey)
         }
         // This app is nothing but its menu bar icon, so a stored "removed from
         // the menu bar" flag would leave it running with no way to reach it.

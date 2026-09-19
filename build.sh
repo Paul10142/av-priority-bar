@@ -7,7 +7,15 @@
 set -euo pipefail
 
 APP_NAME="AVPriorityBar"
-BUNDLE_ID="com.paulclancy.AVPriorityBar"
+# Not "com.paulclancy.AVPriorityBar": macOS's menu bar refuses that identifier on
+# the development machine. Control Center accepts the status item, then logs
+# "Moving host to blocked list" and drops it, so the app runs with no icon. The
+# block is keyed to the bundle identifier alone -- the same binary under any
+# other identifier is placed normally -- and survives a reboot, a Control Center
+# restart and a full reset of its preferences. Settings carry over in
+# SettingsMigration.swift. Camera and microphone permission do not: macOS ties
+# those to the identifier, so both are asked for again on first use.
+BUNDLE_ID="com.paulclancy.AVPriority"
 DEPLOY_TARGET="14.0"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 SRC="$ROOT/$APP_NAME"
@@ -22,6 +30,12 @@ echo "Building $APP_NAME for $TARGET..."
 
 rm -rf "$APP" "$WORK"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$WORK"
+
+# Keep the freshly built app out of Spotlight. Indexing it registers a second
+# bundle with the same identifier as the copy in /Applications, so "open -a
+# AVPriorityBar" and the login item can each pick a different one, and two
+# instances end up running at once, fighting over the same menu bar slot.
+touch "$DIST/.metadata_never_index"
 
 # Work around a Command Line Tools bug where SwiftBridging is declared in both
 # module.modulemap and bridging.modulemap, which makes every compile fail.
