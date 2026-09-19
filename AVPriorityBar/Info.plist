@@ -9,7 +9,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.paulclancy.AVPriorityBar</string>
+	<string>com.paulclancy.AVPriority</string>
 	<key>CFBundleName</key>
 	<string>AV Priority Bar</string>
 	<key>CFBundlePackageType</key>
