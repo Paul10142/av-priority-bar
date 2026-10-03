@@ -13,8 +13,9 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     private var statusItem: NSStatusItem?
     private var panel: NSPanel?
-    private var hostingView: NSHostingView<AnyView>?
+    private var hostingView: PanelHostingView?
     private var scrollView: NSScrollView?
+    private var isResizeScheduled = false
     private var outsideClickMonitor: Any?
     private var escapeMonitor: Any?
     private var cancellables = Set<AnyCancellable>()
@@ -131,21 +132,30 @@ final class PanelController: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
 
+        // Always laid out at its natural height and pinned to the top. Whenever
+        // the hosting view and the content disagree on height - for the moment
+        // between a change and the window catching up - SwiftUI would otherwise
+        // centre the content, cutting off the tab bar or leaving a gap above it.
+        // minHeight: 0 is what makes the frame take the window's height even
+        // when the content is taller; without it the frame grows to the
+        // content and is centred all the same.
         let root = AnyView(
             MenuBarView()
                 .environmentObject(audioManager)
                 .environmentObject(cameraManager)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
         )
 
         // The SwiftUI view is the scroll view's document, so its height is its
         // own business. Letting the window size drive the content's height and
         // the content's height drive the window size is a layout loop, and
         // SwiftUI resolves that loop by overflowing the stack.
-        let hosting = NSHostingView(rootView: root)
+        let hosting = PanelHostingView(rootView: root)
         hosting.sizingOptions = [.intrinsicContentSize]
         hosting.translatesAutoresizingMaskIntoConstraints = true
         hosting.frame = NSRect(x: 0, y: 0, width: width, height: hosting.intrinsicContentSize.height)
-        hosting.postsFrameChangedNotifications = true
+        hosting.onContentHeightChange = { [weak self] in self?.scheduleResize() }
         hostingView = hosting
 
         let scroll = NSScrollView()
@@ -167,25 +177,31 @@ final class PanelController: NSObject, NSWindowDelegate {
         scroll.frame = background.bounds
         scroll.autoresizingMask = [.width, .height]
         panel.contentView = background
-
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(contentSizeChanged),
-            name: NSView.frameDidChangeNotification, object: hosting
-        )
         return panel
     }
 
-    @objc private func contentSizeChanged() {
-        resizeToFitContent()
+    /// A height change is noticed from inside a layout pass, so the resize waits
+    /// until that pass is over - resizing the window during it is the layout
+    /// loop described above. Any number of reports in one pass make one resize.
+    private func scheduleResize() {
+        guard !isResizeScheduled else { return }
+        isResizeScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isResizeScheduled = false
+            self.resizeToFitContent()
+        }
     }
 
     /// Window height follows the content, clamped to what the screen can show.
+    /// Runs on open and again every time the content changes size while open:
+    /// switching tabs, Settings, Edit, a device connecting, a banner appearing.
     private func resizeToFitContent() {
         guard let panel, let hosting = hostingView else { return }
         let width = CGFloat(AppSettings.shared.panelWidth)
         let screenLimit = (panel.screen ?? NSScreen.main)?.visibleFrame.height ?? 800
         let maxHeight = min(PanelMetrics.maxContentHeight, screenLimit - 40)
-        let contentHeight = max(hosting.intrinsicContentSize.height, 120)
+        let contentHeight = max(hosting.intrinsicContentSize.height, PanelMetrics.minContentHeight)
         let height = min(contentHeight, maxHeight)
 
         if abs(hosting.frame.width - width) > 1 || abs(hosting.frame.height - contentHeight) > 1 {
@@ -252,4 +268,25 @@ final class PanelController: NSObject, NSWindowDelegate {
 private final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+}
+
+/// Says when the SwiftUI content changes height. This view's frame is set by
+/// hand, so nothing moves it when the content grows or shrinks - without this
+/// the panel kept the height it opened at, cutting off a taller tab and leaving
+/// a shorter one floating in empty space.
+///
+/// The check sits in layout() because that is the one call SwiftUI reliably
+/// makes after every change: it does not call invalidateIntrinsicContentSize()
+/// when a tab switch changes the height.
+private final class PanelHostingView: NSHostingView<AnyView> {
+    var onContentHeightChange: (() -> Void)?
+    private var reportedHeight: CGFloat = 0
+
+    override func layout() {
+        super.layout()
+        let height = intrinsicContentSize.height
+        guard abs(height - reportedHeight) > 0.5 else { return }
+        reportedHeight = height
+        onContentHeightChange?()
+    }
 }
