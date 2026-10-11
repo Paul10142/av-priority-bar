@@ -469,6 +469,11 @@ class AudioManager: ObservableObject {
         let newlyConnectedUIDs = connectedDeviceUIDs.subtracting(oldConnectedUIDs)
         previousConnectedUIDs = connectedDeviceUIDs
         
+        // The same listener fires when the default device changes - including the
+        // change our own click just made. Re-applying priorities then would undo
+        // the user's choice, so only do it when a device actually came or went.
+        guard connectedDeviceUIDs != oldConnectedUIDs else { return }
+
         // Auto-switch mode only when a new headphone connects or all headphones disconnect
         autoSwitchModeIfNeeded(newlyConnectedUIDs: newlyConnectedUIDs)
         applyHighestPriorityInput()
