@@ -98,16 +98,15 @@ final class PanelController: NSObject, NSWindowDelegate {
         let panel = panel ?? makePanel()
         self.panel = panel
 
+        // Every open starts on Audio, so the camera only turns on once the
+        // Camera tab is clicked.
+        UserDefaults.standard.set(PanelTab.audio.rawValue, forKey: "selectedTab")
+
         resizeToFitContent()
         position(panel)
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         startMonitoring()
-
-        if AppSettings.shared.openWindowWithCameraTab,
-           UserDefaults.standard.string(forKey: "selectedTab") == PanelTab.camera.rawValue {
-            MirrorWindowController.shared.show()
-        }
     }
 
     func close() {
