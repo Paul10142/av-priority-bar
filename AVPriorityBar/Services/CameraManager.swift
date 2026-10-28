@@ -107,13 +107,22 @@ final class CameraManager: ObservableObject {
         connectedIDs.contains(camera.uniqueID)
     }
 
+    /// Connected and switched on. A suspended camera (lid closed) is skipped
+    /// by priority and can't be picked by hand, because macOS won't use it.
+    func isAvailable(_ camera: CameraDevice) -> Bool {
+        isConnected(camera) && !camera.isSuspended
+    }
+
     func lastSeen(_ camera: CameraDevice) -> String? {
         guard !isConnected(camera) else { return nil }
         return priorityManager.getStoredCamera(uniqueID: camera.uniqueID)?.lastSeenRelative
     }
 
+    /// The highest-ranked camera that can actually be used right now. With the
+    /// lid closed the built-in camera is still listed, so this has to look past
+    /// it to the next one down - which is the whole point of having a list.
     var topPriorityCamera: CameraDevice? {
-        cameras.first { isConnected($0) && !priorityManager.isIgnored($0) }
+        cameras.first { isAvailable($0) && !priorityManager.isIgnored($0) }
     }
 
     /// True when the active camera is not the one priority says it should be -
@@ -128,7 +137,7 @@ final class CameraManager: ObservableObject {
     /// A click uses the camera now. It never reorders the list - that is what
     /// dragging is for.
     func selectCamera(_ camera: CameraDevice) {
-        guard isConnected(camera) else { return }
+        guard isAvailable(camera) else { return }
         selectedCameraID = camera.uniqueID
         service.setPreferred(uniqueID: camera.uniqueID)
         refreshCameras()
@@ -172,7 +181,13 @@ final class CameraManager: ObservableObject {
 
     private func applyHighestPriorityCamera() {
         guard let top = topPriorityCamera else { return }
+        let changed = selectedCameraID != top.uniqueID
         selectedCameraID = top.uniqueID
+        // The floating window follows the switch too, so closing the lid
+        // moves it to the external camera rather than leaving it on black.
+        if changed {
+            MirrorWindowController.shared.showCamera(uniqueID: top.uniqueID, name: top.name)
+        }
         guard top.uniqueID != service.currentPreferredUniqueID else {
             recordState(applied: top.name)
             return

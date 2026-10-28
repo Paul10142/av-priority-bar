@@ -89,9 +89,21 @@ final class CameraPriorityManager {
 
     func sortByPriority(_ cameras: [CameraDevice]) -> [CameraDevice] {
         let order = getPriorityOrder()
+        let known = getKnownCameras()
+        func rank(_ camera: CameraDevice) -> Int {
+            if let index = order.firstIndex(of: camera.uniqueID) { return index }
+            // A USB camera's uniqueID changes with the port or hub it is
+            // plugged into - the same Facecam has been seen under two. Borrow
+            // the rank of a remembered camera with the same name, so moving a
+            // cable doesn't send it to the bottom of the list.
+            return known
+                .filter { $0.name == camera.name && $0.uniqueID != camera.uniqueID }
+                .compactMap { order.firstIndex(of: $0.uniqueID) }
+                .min() ?? Int.max
+        }
         return cameras.enumerated().sorted { a, b in
-            let rankA = order.firstIndex(of: a.element.uniqueID) ?? Int.max
-            let rankB = order.firstIndex(of: b.element.uniqueID) ?? Int.max
+            let rankA = rank(a.element)
+            let rankB = rank(b.element)
             // Stable: fall back to the original discovery order on ties.
             return rankA == rankB ? a.offset < b.offset : rankA < rankB
         }.map { $0.element }

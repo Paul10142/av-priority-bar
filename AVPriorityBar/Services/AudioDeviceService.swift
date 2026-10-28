@@ -45,6 +45,7 @@ class AudioDeviceService {
         var devices: [AudioDevice] = []
 
         for deviceId in deviceIds {
+            guard !isTransient(id: deviceId) else { continue }
             if let inputDevice = createDevice(id: deviceId, type: .input) {
                 devices.append(inputDevice)
             }
@@ -54,6 +55,79 @@ class AudioDeviceService {
         }
 
         return devices
+    }
+
+    // MARK: - Transient devices
+
+    /// Devices macOS creates for its own plumbing and tears down again - not
+    /// hardware anyone chose. The best-known is CADefaultDeviceAggregate-
+    /// <pid>-<n>: Core Audio builds one for any process whose audio engine
+    /// wants input and output on different devices (this app's own mic meter
+    /// did, until it was rewritten), under a fresh name and UID every time.
+    /// Listing it meant an ignore never stuck, because the next one was
+    /// always a stranger, and its arrival and departure looked like a device
+    /// being plugged in and out, which re-ran the priority rules and undid
+    /// whatever had been clicked.
+    static func isTransient(uid: String, name: String) -> Bool {
+        uid.hasPrefix("CADefaultDeviceAggregate") || name.hasPrefix("CADefaultDeviceAggregate")
+    }
+
+    private func isTransient(id: AudioObjectID) -> Bool {
+        if let uid = getDeviceUID(id: id), let name = getDeviceName(id: id),
+           Self.isTransient(uid: uid, name: name) {
+            return true
+        }
+        return isHidden(id: id) || isPrivateAggregate(id: id)
+    }
+
+    /// Core Audio's own flag for devices that are not meant to be shown.
+    private func isHidden(id: AudioObjectID) -> Bool {
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyIsHidden,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var hidden: UInt32 = 0
+        var dataSize = UInt32(MemoryLayout<UInt32>.size)
+        let status = AudioObjectGetPropertyData(id, &propertyAddress, 0, nil, &dataSize, &hidden)
+        return status == noErr && hidden != 0
+    }
+
+    /// An aggregate device another process built for itself. The ones made in
+    /// Audio MIDI Setup are not private and still show.
+    private func isPrivateAggregate(id: AudioObjectID) -> Bool {
+        var transportAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var transport: UInt32 = 0
+        var dataSize = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(id, &transportAddress, 0, nil, &dataSize, &transport) == noErr,
+              transport == kAudioDeviceTransportTypeAggregate else { return false }
+
+        var compositionAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioAggregateDevicePropertyComposition,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var composition: Unmanaged<CFDictionary>?
+        dataSize = UInt32(MemoryLayout<Unmanaged<CFDictionary>?>.size)
+        guard AudioObjectGetPropertyData(id, &compositionAddress, 0, nil, &dataSize, &composition) == noErr,
+              let dictionary = composition?.takeRetainedValue() as? [String: Any] else { return false }
+        if let isPrivate = dictionary[kAudioAggregateDeviceIsPrivateKey] as? Bool { return isPrivate }
+        if let isPrivate = dictionary[kAudioAggregateDeviceIsPrivateKey] as? Int { return isPrivate != 0 }
+        return false
+    }
+
+    // MARK: - Lookups
+
+    func uid(for id: AudioObjectID) -> String? {
+        getDeviceUID(id: id)
+    }
+
+    func name(for id: AudioObjectID) -> String? {
+        getDeviceName(id: id)
     }
 
     func getCurrentDefaultDevice(type: AudioDeviceType) -> AudioObjectID? {
