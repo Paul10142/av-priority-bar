@@ -40,7 +40,9 @@ changes the order.
 camera macOS has exposed since Sonoma. Apps that ask macOS for the default
 camera follow it: FaceTime, Photo Booth, and most apps without their own camera
 picker. Apps that remember their own choice — Zoom, Teams, OBS, Meet in a
-browser — ignore it, and no app can make them do otherwise.
+browser — ignore it, and no app can make them do otherwise. With the lid closed
+the built-in camera is still listed but can't see anything, so it is marked
+"Lid closed" and skipped; the next camera takes over until the lid opens.
 
 **A floating camera window.** Resizable, movable, mirrored, always-on-top if you
 want it, and it remembers where you left it. Open it with a keyboard shortcut
@@ -56,7 +58,9 @@ hear me?" has an answer before the call starts.
 
 **Ignore what you don't use.** Virtual cameras, aggregate devices and anything
 else you never want chosen. Ignores are remembered by name as well as by device
-ID, because macOS gives some devices a new ID every time they appear.
+ID, because macOS gives some devices a new ID every time they appear. The
+throwaway aggregate macOS builds for its own plumbing (CADefaultDeviceAggregate)
+never shows up at all.
 
 ## Install
 

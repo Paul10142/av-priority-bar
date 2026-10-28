@@ -110,6 +110,9 @@ class AudioManager: ObservableObject {
     @Published var isActiveInputMuted: Bool = false
     @Published var micFlashState: Bool = false
     @Published var deviceVolumes: [AudioObjectID: Float] = [:]
+    /// Bumped whenever a device arrives or leaves, for views that hold a live
+    /// connection to one device (the mic meter) and need to rebind.
+    @Published var deviceListVersion: Int = 0
 
     private let deviceService = AudioDeviceService()
     private var micFlashTimer: Timer?
@@ -118,6 +121,18 @@ class AudioManager: ObservableObject {
 
     var menuBarIcon: String {
         currentMode.icon
+    }
+
+    /// The active microphone by UID, which is how a live listener is bound to
+    /// it. Resolved from Core Audio rather than the visible list, so it still
+    /// works when the active device is one that has been hidden.
+    var currentInputUID: String? {
+        currentInputId.flatMap { deviceService.uid(for: $0) }
+    }
+
+    var currentInputName: String? {
+        guard let id = currentInputId else { return nil }
+        return (inputDevices + hiddenInputDevices).first { $0.id == id }?.name ?? deviceService.name(for: id)
     }
 
     func refreshVolume() {
@@ -222,6 +237,10 @@ class AudioManager: ObservableObject {
     }
 
     init() {
+        // Earlier builds listed macOS's throwaway aggregate devices and
+        // remembered every one of them; clear those out before anything reads
+        // the lists.
+        priorityManager.pruneTransientDevices()
         currentMode = priorityManager.currentMode
         refreshDevices()
         previousConnectedUIDs = connectedDeviceUIDs  // Initialize tracking
@@ -473,6 +492,7 @@ class AudioManager: ObservableObject {
         // change our own click just made. Re-applying priorities then would undo
         // the user's choice, so only do it when a device actually came or went.
         guard connectedDeviceUIDs != oldConnectedUIDs else { return }
+        deviceListVersion += 1
 
         // Auto-switch mode only when a new headphone connects or all headphones disconnect
         autoSwitchModeIfNeeded(newlyConnectedUIDs: newlyConnectedUIDs)

@@ -68,7 +68,8 @@ SOURCES=$(find "$SRC" -name '*.swift' | sort)
 swiftc -O -target "$TARGET" -parse-as-library \
   "${OVERLAY_ARGS[@]+"${OVERLAY_ARGS[@]}"}" \
   -framework SwiftUI -framework AppKit -framework AVFoundation \
-  -framework CoreAudio -framework ServiceManagement \
+  -framework CoreAudio -framework AudioToolbox -framework IOKit \
+  -framework ServiceManagement \
   -o "$APP/Contents/MacOS/$APP_NAME" \
   $SOURCES
 

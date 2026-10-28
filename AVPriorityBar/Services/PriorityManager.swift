@@ -53,6 +53,7 @@ class PriorityManager {
     }
 
     func rememberDevice(_ uid: String, name: String, isInput: Bool) {
+        guard !AudioDeviceService.isTransient(uid: uid, name: name) else { return }
         var known = getKnownDevices()
         let now = Date()
         if let index = known.firstIndex(where: { $0.uid == uid }) {
@@ -77,6 +78,31 @@ class PriorityManager {
     private func saveKnownDevices(_ devices: [StoredDevice]) {
         if let data = try? JSONEncoder().encode(devices) {
             defaults.set(data, forKey: knownDevicesKey)
+        }
+    }
+
+    /// Drops macOS's throwaway aggregate devices from every stored list.
+    /// Before the device list learned to leave them out, each appearance was
+    /// remembered under its own one-off name - 231 of them on one machine -
+    /// and ignored one at a time; nothing can ever match those entries again.
+    func pruneTransientDevices() {
+        let known = getKnownDevices()
+        let keptKnown = known.filter { !AudioDeviceService.isTransient(uid: $0.uid, name: $0.name) }
+        if keptKnown.count != known.count {
+            saveKnownDevices(keptKnown)
+        }
+
+        var listKeys = [inputPrioritiesKey, speakerPrioritiesKey, headphonePrioritiesKey, neverUseKey]
+        for key in [hiddenMicsKey, hiddenSpeakersKey, hiddenHeadphonesKey, neverUseKey] {
+            listKeys.append(key)
+            listKeys.append(namesKey(key))
+        }
+        for key in listKeys {
+            guard let list = defaults.array(forKey: key) as? [String] else { continue }
+            let kept = list.filter { !AudioDeviceService.isTransient(uid: $0, name: $0) }
+            if kept.count != list.count {
+                defaults.set(kept, forKey: key)
+            }
         }
     }
 

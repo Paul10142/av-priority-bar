@@ -137,11 +137,16 @@ struct DraggableCameraRow: View {
     @State private var lastReportedTarget: Int? = nil
 
     private var isDisconnected: Bool { !cameraManager.isConnected(camera) }
+    /// Plugged in, but switched off by macOS: the built-in camera behind a
+    /// closed lid, or a camera with its privacy shutter down.
+    private var isSuspended: Bool { camera.isSuspended && !isDisconnected }
+    private var isSelectable: Bool { !isDisconnected && !isSuspended }
     private var isActive: Bool {
         let active = cameraManager.selectedCameraID ?? cameraManager.currentPreferredID
-        return camera.uniqueID == active && !isDisconnected
+        return camera.uniqueID == active && isSelectable
     }
     private var isIgnored: Bool { cameraManager.isIgnored(camera) }
+    private var suspendedLabel: String { camera.kind == .builtIn ? "Lid closed" : "Unavailable" }
 
     private func calculateTarget(offset: CGFloat) -> Int? {
         let rowsOffset = Int(round(offset / rowHeight))
@@ -191,8 +196,18 @@ struct DraggableCameraRow: View {
                     .strikethrough(isIgnored, color: .secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .foregroundColor(isDisconnected || isIgnored ? .secondary : .primary)
+                    .foregroundColor(isDisconnected || isSuspended || isIgnored ? .secondary : .primary)
                     .help(camera.name)
+
+                if isSuspended {
+                    Text(suspendedLabel)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.primary.opacity(0.08)))
+                        .help("macOS has switched this camera off. It's still plugged in, but it can't be used until it comes back - a built-in camera returns when the lid is opened. Priority skips it meanwhile.")
+                }
 
                 if isDisconnected {
                     Image(systemName: "wifi.slash")
@@ -224,7 +239,7 @@ struct DraggableCameraRow: View {
 
                 if isHovering && !isDragging {
                     Menu {
-                        if !isDisconnected {
+                        if isSelectable {
                             Button {
                                 cameraManager.selectCamera(camera)
                             } label: {
@@ -266,7 +281,7 @@ struct DraggableCameraRow: View {
         .padding(.leading, 8)
         .padding(.trailing, 10)
         .padding(.vertical, 5)
-        .opacity(isDragging ? 0.5 : (isDisconnected || isIgnored ? 0.6 : 1.0))
+        .opacity(isDragging ? 0.5 : (isDisconnected || isSuspended || isIgnored ? 0.6 : 1.0))
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(isActive ? Color.accentColor.opacity(0.12) : (isHovering ? Color.primary.opacity(0.06) : Color.clear))
@@ -297,7 +312,7 @@ struct DraggableCameraRow: View {
             // Hovering previews the camera without touching priority or the
             // active choice - look first, commit only if you click.
             if hovering {
-                cameraManager.hoveredCameraID = isDisconnected ? nil : camera.uniqueID
+                cameraManager.hoveredCameraID = isSelectable ? camera.uniqueID : nil
             } else if cameraManager.hoveredCameraID == camera.uniqueID {
                 cameraManager.hoveredCameraID = nil
             }
@@ -308,7 +323,7 @@ struct DraggableCameraRow: View {
         .animation(.easeInOut(duration: 0.1), value: isDropTargetBelow)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !isDisconnected { onSelect() }
+            if isSelectable { onSelect() }
         }
         .gesture(
             DragGesture(minimumDistance: 5)

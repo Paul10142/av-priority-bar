@@ -8,8 +8,14 @@ struct CameraDevice: Identifiable, Equatable, Hashable {
     let name: String
     let kind: CameraKind
     var isConnected: Bool = true
+    /// Connected but switched off by macOS - the built-in camera with the lid
+    /// closed, or an external one with its privacy shutter down. It stays in
+    /// the list, but it can't be used and macOS won't hand it to apps.
+    var isSuspended: Bool = false
 
     var id: String { uniqueID }
+
+    var isAvailable: Bool { isConnected && !isSuspended }
 
     static func disconnected(uniqueID: String, name: String, kind: CameraKind) -> CameraDevice {
         CameraDevice(uniqueID: uniqueID, name: name, kind: kind, isConnected: false)
