@@ -117,7 +117,8 @@ class AudioManager: ObservableObject {
     private let deviceService = AudioDeviceService()
     private var micFlashTimer: Timer?
     let priorityManager = PriorityManager()
-    private var connectedDeviceUIDs: Set<String> = []
+    /// `AudioDevice.connectionKey` of everything connected right now.
+    private var connectedDeviceKeys: Set<String> = []
 
     var menuBarIcon: String {
         currentMode.icon
@@ -243,10 +244,11 @@ class AudioManager: ObservableObject {
         priorityManager.pruneTransientDevices()
         currentMode = priorityManager.currentMode
         refreshDevices()
-        previousConnectedUIDs = connectedDeviceUIDs  // Initialize tracking
+        previousConnectedKeys = connectedDeviceKeys  // Initialize tracking
         refreshVolume()
         refreshMuteStatus()
         setupDeviceChangeListener()
+        setupWakeListener()
         setupMuteVolumeListener()
         applyHighestPriorityInput()
         applyHighestPriorityOutput()
@@ -267,24 +269,32 @@ class AudioManager: ObservableObject {
 
     func refreshDevices() {
         let allConnectedDevices = deviceService.getDevices()
-        connectedDeviceUIDs = Set(allConnectedDevices.map { $0.uid })
+        connectedDeviceKeys = Set(allConnectedDevices.map { $0.connectionKey })
+        let builtInInputUIDs = Set(allConnectedDevices.filter { $0.isBuiltIn && $0.type == .input }.map { $0.uid })
         for device in allConnectedDevices {
-            priorityManager.rememberDevice(device.uid, name: device.name, isInput: device.type == .input)
+            let isNew = priorityManager.rememberDevice(device.uid, name: device.name, isInput: device.type == .input)
+            if isNew, device.type == .input, device.isHardware {
+                priorityManager.placeNewInput(device, aboveBuiltIn: builtInInputUIDs)
+            }
         }
         let connectedInputs = allConnectedDevices.filter { $0.type == .input }
         let connectedOutputs = allConnectedDevices.filter { $0.type == .output }
 
+        // Microphones you own but have not plugged in stay in the list, greyed
+        // out with when they were last seen, so they can be ranked ahead of
+        // time - the Wave 3 above the built-in mic is set up at the laptop, not
+        // after docking.
+        let knownDevices = priorityManager.getKnownDevices()
+        let unpluggedInputs = knownDevices
+            .filter { $0.isInput && !connectedDeviceKeys.contains("\(AudioDeviceType.input.rawValue):\($0.uid)") }
+            .map { AudioDevice.disconnected(uid: $0.uid, name: $0.name, type: .input) }
+
         if isEditMode {
-            let knownDevices = priorityManager.getKnownDevices()
             var allInputs: [AudioDevice] = connectedInputs
-            for stored in knownDevices where stored.isInput {
-                if !connectedDeviceUIDs.contains(stored.uid) {
-                    allInputs.append(.disconnected(uid: stored.uid, name: stored.name, type: .input))
-                }
-            }
+            allInputs.append(contentsOf: unpluggedInputs)
             var allOutputs: [AudioDevice] = connectedOutputs
             for stored in knownDevices where !stored.isInput {
-                if !connectedDeviceUIDs.contains(stored.uid) {
+                if !connectedDeviceKeys.contains("\(AudioDeviceType.output.rawValue):\(stored.uid)") {
                     allOutputs.append(.disconnected(uid: stored.uid, name: stored.name, type: .output))
                 }
             }
@@ -298,7 +308,7 @@ class AudioManager: ObservableObject {
             hiddenHeadphoneDevices = []
         } else {
             // Filter out hidden and never-use devices in normal mode
-            let visibleInputs = connectedInputs.filter { !priorityManager.isHidden($0) && !priorityManager.isNeverUse($0) }
+            let visibleInputs = (connectedInputs + unpluggedInputs).filter { !priorityManager.isHidden($0) && !priorityManager.isNeverUse($0) }
             // Hidden inputs: regular hidden first, then never-use
             let regularHiddenInputs = connectedInputs.filter { priorityManager.isHidden($0) && !priorityManager.isNeverUse($0) }
             let neverUseInputs = connectedInputs.filter { priorityManager.isNeverUse($0) }
@@ -329,11 +339,11 @@ class AudioManager: ObservableObject {
     }
 
     func isDeviceConnected(_ device: AudioDevice) -> Bool {
-        connectedDeviceUIDs.contains(device.uid)
+        connectedDeviceKeys.contains(device.connectionKey)
     }
 
-    /// Tracks device UIDs from the previous refresh to detect new connections
-    private var previousConnectedUIDs: Set<String> = []
+    /// Tracks what was connected at the previous refresh to detect changes
+    private var previousConnectedKeys: Set<String> = []
     
     /// Which output category auto-switching is currently aiming at. Set by the
     /// user picking a device, or by headphones appearing and disappearing.
@@ -414,10 +424,9 @@ class AudioManager: ObservableObject {
     func moveInputDevice(from source: IndexSet, to destination: Int) {
         inputDevices.move(fromOffsets: source, toOffset: destination)
         priorityManager.savePriorities(inputDevices, type: .input)
-        // Switch to top input if it's connected
-        if let topInput = inputDevices.first, topInput.isConnected {
-            applyInputDevice(topInput)
-        }
+        // Unplugged microphones can sit at the top now, so "the top one" has to
+        // mean the top one that is actually connected.
+        applyHighestPriorityInput()
     }
 
     func moveSpeakerDevice(from source: IndexSet, to destination: Int) {
@@ -480,37 +489,51 @@ class AudioManager: ObservableObject {
     }
 
     private func handleDeviceChange() {
-        let oldConnectedUIDs = previousConnectedUIDs
+        let oldConnectedKeys = previousConnectedKeys
         refreshDevices()
         refreshMuteStatus()
-        
+
         // Detect newly connected devices
-        let newlyConnectedUIDs = connectedDeviceUIDs.subtracting(oldConnectedUIDs)
-        previousConnectedUIDs = connectedDeviceUIDs
-        
+        let newlyConnectedKeys = connectedDeviceKeys.subtracting(oldConnectedKeys)
+        previousConnectedKeys = connectedDeviceKeys
+
         // The same listener fires when the default device changes - including the
         // change our own click just made. Re-applying priorities then would undo
         // the user's choice, so only do it when a device actually came or went.
-        guard connectedDeviceUIDs != oldConnectedUIDs else { return }
+        // Compared per direction: a USB mic and its headphone jack share a UID,
+        // so one turning up after the other changed nothing by UID alone and the
+        // new microphone was never picked.
+        guard connectedDeviceKeys != oldConnectedKeys else { return }
         deviceListVersion += 1
 
         // Auto-switch mode only when a new headphone connects or all headphones disconnect
-        autoSwitchModeIfNeeded(newlyConnectedUIDs: newlyConnectedUIDs)
+        autoSwitchModeIfNeeded(newlyConnectedKeys: newlyConnectedKeys)
         applyHighestPriorityInput()
         applyHighestPriorityOutput()
     }
-    
+
+    /// Waking from sleep is when a dock's devices most often come or go without
+    /// a notification being seen. Re-check, and re-apply priority only if the
+    /// set of devices really changed, so a click made before sleeping survives.
+    private func setupWakeListener() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.handleDeviceChange() }
+        }
+    }
+
     /// Automatically switches between headphone and speaker mode based on device connections.
     /// Only triggers on:
     /// 1. A new headphone device connects → switch to headphone mode
     /// 2. All headphones disconnect → switch to speaker mode
-    private func autoSwitchModeIfNeeded(newlyConnectedUIDs: Set<String>) {
+    private func autoSwitchModeIfNeeded(newlyConnectedKeys: Set<String>) {
         let connectedHeadphones = headphoneDevices.filter { $0.isConnected }
         let hasConnectedHeadphones = !connectedHeadphones.isEmpty
         let hasConnectedSpeakers = speakerDevices.contains { $0.isConnected }
         
         // Check if a new headphone just connected
-        let newHeadphoneConnected = connectedHeadphones.contains { newlyConnectedUIDs.contains($0.uid) }
+        let newHeadphoneConnected = connectedHeadphones.contains { newlyConnectedKeys.contains($0.connectionKey) }
         
         if newHeadphoneConnected && currentMode != .headphone {
             // A new headphone just connected - switch to headphone mode

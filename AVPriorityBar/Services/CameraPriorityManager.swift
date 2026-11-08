@@ -35,15 +35,58 @@ final class CameraPriorityManager {
         return cameras
     }
 
-    func rememberCamera(_ camera: CameraDevice) {
+    /// Returns true the first time this uniqueID is seen.
+    @discardableResult
+    func rememberCamera(_ camera: CameraDevice) -> Bool {
         var known = getKnownCameras()
         let entry = StoredCamera(uniqueID: camera.uniqueID, name: camera.name, kind: camera.kind, lastSeen: Date())
+        let isNew: Bool
         if let index = known.firstIndex(where: { $0.uniqueID == camera.uniqueID }) {
             known[index] = entry
+            isNew = false
         } else {
             known.append(entry)
+            isNew = true
         }
         saveKnownCameras(known)
+        return isNew
+    }
+
+    /// A USB camera's uniqueID changes with the port or hub it is plugged into -
+    /// the same Facecam has been seen under two. Each ID was remembered as a
+    /// camera of its own, which meant duplicate rows and a rank that stayed
+    /// with whichever ID it had last been dragged under. Cameras with the same
+    /// name and kind are treated as one: the one connected now (or, if none,
+    /// the one seen last) keeps the entry and inherits the best rank any of
+    /// them held; the others are dropped.
+    func consolidateDuplicates(connectedIDs: Set<String>) {
+        var known = getKnownCameras()
+        var order = getPriorityOrder()
+        var ignored = defaults.array(forKey: ignoredCamerasKey) as? [String] ?? []
+        let original = (known, order, ignored)
+
+        let groups = Dictionary(grouping: known) { "\($0.kind.rawValue)|\($0.name)" }
+        for group in groups.values where group.count > 1 {
+            let connected = group.filter { connectedIDs.contains($0.uniqueID) }
+            let keepers = connected.isEmpty ? [group.max { $0.lastSeen < $1.lastSeen }!] : connected
+            let keeperIDs = Set(keepers.map { $0.uniqueID })
+            let dropped = group.map { $0.uniqueID }.filter { !keeperIDs.contains($0) }
+            guard !dropped.isEmpty, let keeper = keepers.first?.uniqueID else { continue }
+
+            if !order.contains(keeper), let slot = dropped.compactMap({ order.firstIndex(of: $0) }).min() {
+                order[slot] = keeper
+            }
+            if !ignored.contains(keeper), dropped.contains(where: { ignored.contains($0) }) {
+                ignored.append(keeper)
+            }
+            known.removeAll { dropped.contains($0.uniqueID) }
+            order.removeAll { dropped.contains($0) }
+            ignored.removeAll { dropped.contains($0) }
+        }
+
+        if known != original.0 { saveKnownCameras(known) }
+        if order != original.1 { defaults.set(order, forKey: prioritiesKey) }
+        if ignored != original.2 { defaults.set(ignored, forKey: ignoredCamerasKey) }
     }
 
     func getStoredCamera(uniqueID: String) -> StoredCamera? {
@@ -110,11 +153,22 @@ final class CameraPriorityManager {
     }
 
     func savePriorities(_ cameras: [CameraDevice]) {
-        // Preserve the rank of cameras that aren't in this list (disconnected and
-        // hidden from the current view) instead of dropping them from the order.
-        let visible = cameras.map { $0.uniqueID }
-        let retained = getPriorityOrder().filter { !visible.contains($0) }
-        defaults.set(visible + retained, forKey: prioritiesKey)
+        // Cameras that aren't in this list (ignored ones) keep their slots; the
+        // visible ones fill the rest in their new order.
+        let merged = PriorityOrder.merged(visible: cameras.map { $0.uniqueID }, into: getPriorityOrder())
+        defaults.set(merged, forKey: prioritiesKey)
+    }
+
+    /// A camera seen for the first time has no rank and would sort below every
+    /// ranked one - under the built-in camera, so a newly bought webcam was
+    /// never used. External hardware goes just above the built-in camera
+    /// instead. Left alone on a first run, when the starting order is seeded
+    /// from scratch.
+    func placeNew(_ camera: CameraDevice, aboveBuiltIn builtInIDs: Set<String>) {
+        var order = getPriorityOrder()
+        guard !order.isEmpty, !order.contains(camera.uniqueID) else { return }
+        order.insert(camera.uniqueID, at: order.firstIndex { builtInIDs.contains($0) } ?? 0)
+        defaults.set(order, forKey: prioritiesKey)
     }
 
     /// Moves a camera to the top of the priority list.

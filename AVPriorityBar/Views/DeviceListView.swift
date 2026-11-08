@@ -21,7 +21,10 @@ struct DeviceListView: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            ForEach(Array(devices.enumerated()), id: \.element.id) { index, device in
+            // Keyed by UID: unplugged devices are placeholders that all carry
+            // the same AudioObjectID (0), and SwiftUI gives undefined results -
+            // repeated or dropped rows - for rows that share an ID.
+            ForEach(Array(devices.enumerated()), id: \.element.uid) { index, device in
                 DraggableDeviceRow(
                     device: device,
                     index: index,
@@ -134,7 +137,7 @@ struct DraggableDeviceRow: View {
 
     var lastSeenText: String? {
         guard isDisconnected,
-              let stored = audioManager.priorityManager.getStoredDevice(uid: device.uid) else {
+              let stored = audioManager.priorityManager.getStoredDevice(uid: device.uid, isInput: device.type == .input) else {
             return nil
         }
         return stored.lastSeenRelative
@@ -326,7 +329,7 @@ struct DraggableDeviceRow: View {
                     if isDisconnected {
                         Divider()
                         Button(role: .destructive) {
-                            audioManager.priorityManager.forgetDevice(device.uid)
+                            audioManager.priorityManager.forgetDevice(device.uid, isInput: device.type == .input)
                             audioManager.refreshDevices()
                         } label: {
                             Label("Forget Device", systemImage: "trash")
