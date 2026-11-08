@@ -156,7 +156,7 @@ struct FooterView: View {
                         }
                     }
                 }
-                .help(tab == .camera ? "Show every camera ever connected" : "Show every audio device ever connected")
+                .help(tab == .camera ? "Show ignored cameras in the list, and every camera ever connected" : "Show ignored devices in the list, and every audio device ever connected")
             }
 
             FooterButton(icon: "power", title: "Quit", tint: .secondary) {

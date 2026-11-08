@@ -31,10 +31,20 @@ struct AudioDevice: Identifiable, Equatable, Hashable {
     let name: String
     let type: AudioDeviceType
     var isConnected: Bool = true
+    /// The Mac's own microphone or speakers.
+    var isBuiltIn: Bool = false
+    /// Something plugged in or paired: not built in, and not software (Wave
+    /// Link, Teams, Zoom, loopback drivers). Only these jump the queue the
+    /// first time they are seen.
+    var isHardware: Bool = false
 
     var isValid: Bool {
         id != kAudioObjectUnknown
     }
+
+    /// One USB device has a single UID for both its microphone and its
+    /// headphone jack, so a UID alone cannot say which side is meant.
+    var connectionKey: String { "\(type.rawValue):\(uid)" }
 
     // Create a disconnected placeholder from stored device
     static func disconnected(uid: String, name: String, type: AudioDeviceType) -> AudioDevice {

@@ -79,17 +79,19 @@ final class CameraManager: ObservableObject {
         authState = service.authState
         let connected = service.getDevices()
         connectedIDs = Set(connected.map { $0.uniqueID })
-        for camera in connected {
-            priorityManager.rememberCamera(camera)
+        let firstSeen = connected.filter { priorityManager.rememberCamera($0) }
+        priorityManager.consolidateDuplicates(connectedIDs: connectedIDs)
+        let builtInIDs = Set(connected.filter { $0.kind == .builtIn }.map { $0.uniqueID })
+        for camera in firstSeen where camera.kind == .external {
+            priorityManager.placeNew(camera, aboveBuiltIn: builtInIDs)
         }
 
+        // Every camera ever seen stays in the list, greyed out with when it was
+        // last connected, so one that is unplugged - the Facecam, away from
+        // the desk - can still be ranked above the built-in camera.
         var all = connected
-        if isEditMode {
-            // Edit mode also shows every camera ever seen, so old ones can be
-            // ranked or forgotten while unplugged.
-            for stored in priorityManager.getKnownCameras() where !connectedIDs.contains(stored.uniqueID) {
-                all.append(.disconnected(uniqueID: stored.uniqueID, name: stored.name, kind: stored.kind))
-            }
+        for stored in priorityManager.getKnownCameras() where !connectedIDs.contains(stored.uniqueID) {
+            all.append(.disconnected(uniqueID: stored.uniqueID, name: stored.name, kind: stored.kind))
         }
 
         let sorted = priorityManager.sortByPriority(all)
@@ -98,7 +100,7 @@ final class CameraManager: ObservableObject {
             ignoredCameras = []
         } else {
             cameras = sorted.filter { !priorityManager.isIgnored($0) }
-            ignoredCameras = sorted.filter { priorityManager.isIgnored($0) }
+            ignoredCameras = sorted.filter { priorityManager.isIgnored($0) && $0.isConnected }
         }
         currentPreferredID = service.currentPreferredUniqueID
     }
@@ -228,5 +230,21 @@ final class CameraManager: ObservableObject {
             }
         }
         service.startListening()
+
+        // After sleep, re-check the cameras. Priority is re-applied only if the
+        // best camera is now a different one, so a click made before sleeping
+        // survives an ordinary wake but a changed dock does not.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let before = self.topPriorityCamera?.uniqueID
+                self.refreshCameras()
+                if self.topPriorityCamera?.uniqueID != before {
+                    self.applyHighestPriorityCamera()
+                }
+            }
+        }
     }
 }

@@ -52,27 +52,44 @@ class PriorityManager {
         return devices
     }
 
-    func rememberDevice(_ uid: String, name: String, isInput: Bool) {
-        guard !AudioDeviceService.isTransient(uid: uid, name: name) else { return }
+    /// Remembered per direction: one USB device has a single UID for its
+    /// microphone and its headphone jack, and keying on the UID alone let
+    /// whichever side was listed last overwrite the other - the Elgato Wave:3
+    /// ended up stored as an output only, so it never showed as a microphone.
+    /// Returns true the first time this device-and-direction is seen.
+    @discardableResult
+    func rememberDevice(_ uid: String, name: String, isInput: Bool) -> Bool {
+        guard !AudioDeviceService.isTransient(uid: uid, name: name) else { return false }
         var known = getKnownDevices()
         let now = Date()
-        if let index = known.firstIndex(where: { $0.uid == uid }) {
+        let isNew: Bool
+        if let index = known.firstIndex(where: { $0.uid == uid && $0.isInput == isInput }) {
             // Update name and lastSeen
             known[index] = StoredDevice(uid: uid, name: name, isInput: isInput, lastSeen: now)
+            isNew = false
         } else {
             known.append(StoredDevice(uid: uid, name: name, isInput: isInput, lastSeen: now))
+            isNew = true
         }
         saveKnownDevices(known)
+        return isNew
     }
 
-    func getStoredDevice(uid: String) -> StoredDevice? {
-        getKnownDevices().first { $0.uid == uid }
+    func getStoredDevice(uid: String, isInput: Bool) -> StoredDevice? {
+        getKnownDevices().first { $0.uid == uid && $0.isInput == isInput }
     }
 
-    func forgetDevice(_ uid: String) {
+    func forgetDevice(_ uid: String, isInput: Bool) {
         var known = getKnownDevices()
-        known.removeAll { $0.uid == uid }
+        known.removeAll { $0.uid == uid && $0.isInput == isInput }
         saveKnownDevices(known)
+        // Its rank goes too, or a device you forgot would still hold a slot.
+        let keys = isInput ? [inputPrioritiesKey] : [speakerPrioritiesKey, headphonePrioritiesKey]
+        for key in keys {
+            var order = defaults.array(forKey: key) as? [String] ?? []
+            order.removeAll { $0 == uid }
+            defaults.set(order, forKey: key)
+        }
     }
 
     private func saveKnownDevices(_ devices: [StoredDevice]) {
@@ -295,15 +312,54 @@ class PriorityManager {
     private func sortDevices(_ devices: [AudioDevice], usingKey key: String) -> [AudioDevice] {
         let priorities = defaults.array(forKey: key) as? [String] ?? []
 
-        return devices.sorted { a, b in
-            let indexA = priorities.firstIndex(of: a.uid) ?? Int.max
-            let indexB = priorities.firstIndex(of: b.uid) ?? Int.max
-            return indexA < indexB
-        }
+        // Devices with no rank sink to the bottom, in the order they were
+        // listed: Swift's sort is not guaranteed stable, and an unstable one
+        // can shuffle unranked rows between refreshes.
+        return devices.enumerated().sorted { a, b in
+            let indexA = priorities.firstIndex(of: a.element.uid) ?? Int.max
+            let indexB = priorities.firstIndex(of: b.element.uid) ?? Int.max
+            return indexA == indexB ? a.offset < b.offset : indexA < indexB
+        }.map { $0.element }
     }
 
+    /// Saves the order you see, without forgetting the rank of devices that are
+    /// not in view (ignored ones, or unplugged ones in a list that hides them):
+    /// each keeps its slot, and the visible devices fill the rest in their new
+    /// order. Writing only the visible devices used to wipe every other rank -
+    /// a saved microphone order shrank from nine entries to three.
     private func savePriorities(_ devices: [AudioDevice], key: String) {
-        let uids = devices.map { $0.uid }
-        defaults.set(uids, forKey: key)
+        let existing = defaults.array(forKey: key) as? [String] ?? []
+        defaults.set(PriorityOrder.merged(visible: devices.map { $0.uid }, into: existing), forKey: key)
+    }
+
+    /// A microphone seen for the first time has no rank, and an unranked device
+    /// sorts below every ranked one - so a new USB mic landed under the built-in
+    /// one and was never used. Real hardware goes just above the built-in mic
+    /// instead; software devices keep sinking to the bottom.
+    func placeNewInput(_ device: AudioDevice, aboveBuiltIn builtInUIDs: Set<String>) {
+        var order = defaults.array(forKey: inputPrioritiesKey) as? [String] ?? []
+        guard !order.contains(device.uid) else { return }
+        order.insert(device.uid, at: order.firstIndex { builtInUIDs.contains($0) } ?? 0)
+        defaults.set(order, forKey: inputPrioritiesKey)
+    }
+}
+
+enum PriorityOrder {
+    /// `visible` in its new order, spliced into `existing`: ids not in `visible`
+    /// keep their slots, visible ones take the remaining slots in order, and
+    /// any visible id with no slot yet goes on the end.
+    static func merged(visible: [String], into existing: [String]) -> [String] {
+        let shown = Set(visible)
+        var queue = visible[...]
+        var result: [String] = []
+        for id in existing {
+            if shown.contains(id) {
+                if let next = queue.popFirst() { result.append(next) }
+            } else {
+                result.append(id)
+            }
+        }
+        result.append(contentsOf: queue.filter { !result.contains($0) })
+        return result
     }
 }

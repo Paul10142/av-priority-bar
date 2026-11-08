@@ -597,7 +597,25 @@ class AudioDeviceService {
         guard let name = getDeviceName(id: id) else { return nil }
         guard let uid = getDeviceUID(id: id) else { return nil }
 
-        return AudioDevice(id: id, uid: uid, name: name, type: type)
+        let transport = transportType(id: id)
+        let isBuiltIn = transport == kAudioDeviceTransportTypeBuiltIn
+        let isSoftware = transport == kAudioDeviceTransportTypeVirtual
+            || transport == kAudioDeviceTransportTypeAggregate
+            || transport == 0
+        return AudioDevice(id: id, uid: uid, name: name, type: type,
+                           isBuiltIn: isBuiltIn, isHardware: !isBuiltIn && !isSoftware)
+    }
+
+    private func transportType(id: AudioObjectID) -> UInt32 {
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var transport: UInt32 = 0
+        var dataSize = UInt32(MemoryLayout<UInt32>.size)
+        let status = AudioObjectGetPropertyData(id, &propertyAddress, 0, nil, &dataSize, &transport)
+        return status == noErr ? transport : 0
     }
 
     private func hasStreams(deviceId: AudioObjectID, scope: AudioObjectPropertyScope) -> Bool {
