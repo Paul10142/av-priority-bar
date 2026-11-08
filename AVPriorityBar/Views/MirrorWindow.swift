@@ -197,21 +197,115 @@ private struct MirrorWindowContent: View {
 /// An invisible click target over the notch. macOS reports the notch area as the
 /// gap between the screen's full frame and its auxiliary top areas; a borderless
 /// window sits there and forwards a click.
+///
+/// The strip is re-anchored every time the screen layout changes. Left where it
+/// was created, a lid closing, a monitor coming or going, or mirroring to a
+/// display of another height moves it, and after a few days of docking it sits
+/// somewhere in the middle of the screen as an invisible click-swallower that
+/// opens the camera (found 2026-11-08 at the bottom centre of the built-in
+/// display, twelve days after launch).
 @MainActor
 final class NotchClickController {
     static let shared = NotchClickController()
 
-    private var window: NSWindow?
+    private var window: NSPanel?
+    private var enabled = false
+    private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
+    private var pendingReanchor: DispatchWorkItem?
+    private let notchWidth: CGFloat = 200
 
     func apply(enabled: Bool) {
-        if enabled { install() } else { remove() }
+        self.enabled = enabled
+        if enabled {
+            startObserving()
+            reanchor()
+        } else {
+            stopObserving()
+            window?.orderOut(nil)
+            window = nil
+        }
     }
 
-    private func install() {
-        guard window == nil, let screen = NSScreen.main else { return }
-        guard let notchRect = notchFrame(for: screen) else { return }
+    /// True when some attached display has a notch to sit over.
+    var isSupported: Bool { notchScreen != nil }
 
-        let panel = NSPanel(contentRect: notchRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    /// The display that physically has a notch. There is at most one, and it is
+    /// not always the main screen: an external monitor can hold the menu bar.
+    private var notchScreen: NSScreen? {
+        NSScreen.screens.first { $0.safeAreaInsets.top > 0 }
+    }
+
+    /// Where the strip belongs right now, or nil when no screen has a notch
+    /// (external display only, clamshell, mirroring).
+    private var targetFrame: NSRect? {
+        guard let screen = notchScreen else { return nil }
+        return notchFrame(for: screen)
+    }
+
+    /// Whether this window is the strip, sitting over the notch, and so may act
+    /// on a click. A strip that has drifted must swallow nothing.
+    func isOverNotch(_ candidate: NSWindow?) -> Bool {
+        guard let candidate, candidate === window, let target = targetFrame else { return false }
+        let frame = candidate.frame
+        return abs(frame.minX - target.minX) < 1 && abs(frame.minY - target.minY) < 1
+            && abs(frame.width - target.width) < 1 && abs(frame.height - target.height) < 1
+    }
+
+    /// Puts the strip over the notch, or hides it when there is none.
+    func reanchor() {
+        guard enabled else { return }
+        guard let target = targetFrame else {
+            window?.orderOut(nil)
+            return
+        }
+        let panel = window ?? makePanel(frame: target)
+        window = panel
+        if panel.frame != target {
+            panel.setFrame(target, display: false)
+        }
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
+    }
+
+    private func startObserving() {
+        guard observers.isEmpty else { return }
+        let app = NotificationCenter.default
+        let workspace = NSWorkspace.shared.notificationCenter
+        let token = app.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.screenLayoutChanged() }
+        }
+        observers.append((center: app, token: token))
+        let wakeToken = workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.screenLayoutChanged() }
+        }
+        observers.append((center: workspace, token: wakeToken))
+    }
+
+    private func stopObserving() {
+        for observer in observers {
+            observer.center.removeObserver(observer.token)
+        }
+        observers.removeAll()
+        pendingReanchor?.cancel()
+        pendingReanchor = nil
+    }
+
+    /// Displays settle in steps (the lid, then the arrangement, then the
+    /// resolution), and AppKit may still move windows after the first notice,
+    /// so the strip is anchored at once and again a moment later.
+    private func screenLayoutChanged() {
+        reanchor()
+        pendingReanchor?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in self?.reanchor() }
+        }
+        pendingReanchor = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+    }
+
+    private func makePanel(frame: NSRect) -> NSPanel {
+        let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.level = .statusBar
         panel.backgroundColor = .clear
         panel.isOpaque = false
@@ -219,20 +313,13 @@ final class NotchClickController {
         panel.ignoresMouseEvents = false
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         panel.contentView = NotchClickView()
-        panel.orderFrontRegardless()
-        window = panel
+        return panel
     }
 
-    private func remove() {
-        window?.orderOut(nil)
-        window = nil
-    }
-
-    /// nil on a Mac without a notch, where this setting has nothing to attach to.
+    /// nil on a screen without a notch, where there is nothing to attach to.
     private func notchFrame(for screen: NSScreen) -> NSRect? {
         let topInset = screen.safeAreaInsets.top
         guard topInset > 0 else { return nil }
-        let notchWidth: CGFloat = 200
         return NSRect(
             x: screen.frame.midX - notchWidth / 2,
             y: screen.frame.maxY - topInset,
@@ -240,16 +327,18 @@ final class NotchClickController {
             height: topInset
         )
     }
-
-    var isSupported: Bool {
-        guard let screen = NSScreen.main else { return false }
-        return screen.safeAreaInsets.top > 0
-    }
 }
 
 private final class NotchClickView: NSView {
     override func mouseDown(with event: NSEvent) {
+        let window = self.window
         Task { @MainActor in
+            // A strip that has drifted off the notch must not open anything;
+            // the click puts it back where it belongs instead.
+            guard NotchClickController.shared.isOverNotch(window) else {
+                NotchClickController.shared.reanchor()
+                return
+            }
             MirrorWindowController.shared.toggle()
         }
     }
